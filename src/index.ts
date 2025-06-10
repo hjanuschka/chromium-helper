@@ -596,23 +596,92 @@ class ChromiumCodeSearchServer {
   private async getChromiumFile(args: any) {
     const { file_path, line_start, line_end } = args;
     
-    let url = `https://source.chromium.org/chromium/chromium/src/+/main:${file_path}`;
-    if (line_start) {
-      url += `;l=${line_start}`;
-      if (line_end) {
-        url += `-${line_end}`;
-      }
-    }
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: `File: ${file_path}\nURL: ${url}\n\nUse the URL above to view the file content in your browser.`,
+    try {
+      // Fetch from Gitiles API
+      const gitileUrl = `https://chromium.googlesource.com/chromium/src/+/main/${file_path}?format=TEXT`;
+      
+      this.log('debug', 'Fetching file from Gitiles', { file_path, gitileUrl });
+      
+      const response = await fetch(gitileUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
         },
-      ],
-    };
+      });
+
+      if (!response.ok) {
+        // If Gitiles fails, provide the browser URL as fallback
+        const browserUrl = `https://source.chromium.org/chromium/chromium/src/+/main:${file_path}`;
+        return {
+          content: [
+            {
+              type: "text",
+              text: `❌ **Failed to fetch file content** (HTTP ${response.status})\n\n**File:** ${file_path}\n**Browser URL:** ${browserUrl}\n\nUse the URL above to view the file in your browser.`,
+            },
+          ],
+        };
+      }
+
+      // The response is base64 encoded
+      const base64Content = await response.text();
+      const fileContent = Buffer.from(base64Content, 'base64').toString('utf-8');
+      
+      // Split into lines for line number processing
+      const lines = fileContent.split('\n');
+      let displayLines = lines;
+      let startLine = 1;
+      
+      // Apply line range if specified
+      if (line_start) {
+        const start = Math.max(1, parseInt(line_start)) - 1; // Convert to 0-based
+        const end = line_end ? Math.min(lines.length, parseInt(line_end)) : lines.length;
+        displayLines = lines.slice(start, end);
+        startLine = start + 1;
+      }
+      
+      // Format content with line numbers
+      const numberedLines = displayLines.map((line, index) => {
+        const lineNum = (startLine + index).toString().padStart(4, ' ');
+        return `${lineNum}  ${line}`;
+      }).join('\n');
+      
+      // Create browser URL for reference
+      let browserUrl = `https://source.chromium.org/chromium/chromium/src/+/main:${file_path}`;
+      if (line_start) {
+        browserUrl += `;l=${line_start}`;
+        if (line_end) {
+          browserUrl += `-${line_end}`;
+        }
+      }
+      
+      const totalLines = lines.length;
+      const displayedLines = displayLines.length;
+      const lineRangeText = line_start ? ` (lines ${line_start}${line_end ? `-${line_end}` : '+'})` : '';
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: `## File: ${file_path}${lineRangeText}\n\n📊 **Total lines:** ${totalLines} | **Displayed:** ${displayedLines}\n🔗 **Browser URL:** ${browserUrl}\n\n\`\`\`${this.getFileExtension(file_path)}\n${numberedLines}\n\`\`\``,
+          },
+        ],
+      };
+      
+    } catch (error: any) {
+      this.log('error', 'Failed to fetch file content', { file_path, error: error.message });
+      
+      // Fallback to browser URL
+      const browserUrl = `https://source.chromium.org/chromium/chromium/src/+/main:${file_path}`;
+      return {
+        content: [
+          {
+            type: "text",
+            text: `❌ **Error fetching file:** ${error.message}\n\n**File:** ${file_path}\n**Browser URL:** ${browserUrl}\n\nUse the URL above to view the file in your browser.`,
+          },
+        ],
+      };
+    }
   }
+
 
   private async fetchWithCache(url: string): Promise<any> {
     const cacheHit = this.cache.has(url);

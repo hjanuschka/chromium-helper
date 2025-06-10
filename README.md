@@ -2,6 +2,8 @@
 
 An MCP (Model Context Protocol) server that provides access to the Chromium source code repository via the **real Google CodeSearch API**. This is the same API that powers https://source.chromium.org.
 
+> **🔒 Status**: Currently private repository. Will be made public after testing and validation.
+
 ## Features
 
 - **🔍 Real-time Code Search**: Search the live Chromium codebase using Google's official search API
