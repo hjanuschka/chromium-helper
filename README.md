@@ -14,6 +14,8 @@ An MCP (Model Context Protocol) server that provides access to the Chromium sour
 - **📝 Commit History Search**: Search commit messages, author activity, and development history
 - **🔄 Gerrit Integration**: Check CL status, review comments, diffs, and test results
 - **👥 Code Ownership**: Find OWNERS files and reviewers for any file or directory
+- **🐛 Issue Tracking**: Fetch detailed information for Chromium bugs and feature requests
+- **🔗 Smart Linking**: Automatic detection and linking between commits, reviews, and issues
 
 ## Tools Provided
 
@@ -206,7 +208,30 @@ search_chromium_commits(query="WebContents", author="@chromium.org", limit=5)
 - **Commit Metadata**: Author, date, commit hash, and full commit message
 - **Direct Links**: URLs to view commits in Gitiles and associated Gerrit reviews
 - **Review Integration**: Automatic detection and linking of Gerrit review URLs
+- **Issue Integration**: Automatic detection and linking of bug IDs in commit messages
 - **Rich Formatting**: Proper display of commit messages with summaries and bodies
+
+### `get_chromium_issue`
+Get detailed information for a specific Chromium issue/bug from issues.chromium.org.
+
+**Parameters:**
+- `issue_id` (required): Issue ID or full URL (e.g., '422768753' or 'https://issues.chromium.org/issues/422768753')
+
+**Examples:**
+```
+get_chromium_issue(issue_id="422768753")
+get_chromium_issue(issue_id="https://issues.chromium.org/issues/422768753")
+```
+
+**Returns:**
+- **Issue Details**: Title, status, priority, type, severity, and metadata
+- **Reporter & Assignee**: Who reported and is assigned to the issue
+- **Timestamps**: Creation and last modification dates
+- **Description**: Full issue description extracted using browser automation
+- **Related Changes**: Associated Gerrit CLs and their status (MERGED/OPEN/ABANDONED)
+- **Direct Links**: URLs to view the issue and related changes
+
+**Note:** This tool uses Playwright browser automation to extract complete issue descriptions from dynamically loaded content. The first run may take longer as it downloads browser binaries.
 
 ## Sample Usage Examples
 
@@ -427,6 +452,43 @@ Find commits around the time of a known issue
 </details>
 
 <details>
+<summary>🐛 Issue Tracking Examples</summary>
+
+### Bug Investigation
+```
+Get details for a specific issue number found in commit messages
+Check the status and priority of security-related bugs
+Find information about feature requests and their implementation status
+Look up bug reports with reproduction steps and workarounds
+```
+
+### Issue Discovery from Commits
+```
+Search commits for "Bug: 422768753" and then get issue details
+Find commits that mention specific issue numbers
+Track bug fixes through commit history and issue updates
+Discover related issues mentioned in commit messages
+```
+
+### Development Workflow
+```
+Get issue details when reviewing Gerrit CLs
+Check if bugs are still open before working on related features
+Find issue reporters and assignees for collaboration
+Review issue descriptions and acceptance criteria
+```
+
+### Cross-Reference Analysis
+```
+Find commits that fix specific issues
+Check if issues have associated Gerrit reviews
+Track issue lifecycle from creation to resolution
+Discover related issues and duplicate reports
+```
+
+</details>
+
+<details>
 <summary>🎨 Specialized Use Cases</summary>
 
 ### Security Research
@@ -488,7 +550,11 @@ npm install -g chromium-codesearch-mcp
    ```bash
    npm install
    ```
-3. Build the project:
+3. Install browser binaries for issue extraction:
+   ```bash
+   npx playwright install chromium
+   ```
+4. Build the project:
    ```bash
    npm run build
    ```
@@ -588,6 +654,13 @@ Use find_chromium_owners_file to find who can review changes to "chrome/browser/
 Use search_chromium_commits to find commits mentioning "password manager" in the last month
 Use search_chromium_commits to search for security fixes by Chrome team members
 Use search_chromium_commits to find recent commits by a specific author
+```
+
+**Get issue information:**
+```
+Use get_chromium_issue to get details for bug 422768753
+Use get_chromium_issue to check the status and priority of a reported issue
+Use get_chromium_issue to find related CLs and review links for an issue
 ```
 
 ## Sample Results
