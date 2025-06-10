@@ -11,6 +11,9 @@ An MCP (Model Context Protocol) server that provides access to the Chromium sour
 - **📊 Rich Results**: Get line numbers, file paths, code snippets, and estimated match counts
 - **🔗 Direct Links**: Every result includes clickable URLs to view code in source.chromium.org
 - **⚡ Fast & Accurate**: Uses the same search infrastructure as the official Chromium website
+- **📝 Commit History Search**: Search commit messages, author activity, and development history
+- **🔄 Gerrit Integration**: Check CL status, review comments, diffs, and test results
+- **👥 Code Ownership**: Find OWNERS files and reviewers for any file or directory
 
 ## Tools Provided
 
@@ -180,6 +183,31 @@ find_chromium_owners_file(file_path="chrome/browser/ui/browser.cc")
 - **Direct Links**: URLs to view each OWNERS file in source.chromium.org
 - **Review Guidance**: Information about how OWNERS files work for code reviews
 
+### `search_chromium_commits`
+Search commit messages and metadata in the Chromium repository using the Gitiles API.
+
+**Parameters:**
+- `query` (required): Search query for commit messages, file paths, or metadata
+- `author` (optional): Filter by author name or email
+- `since` (optional): Only commits after this date (YYYY-MM-DD format)
+- `until` (optional): Only commits before this date (YYYY-MM-DD format)
+- `limit` (optional): Maximum number of commits to return (default: 20, max: 100)
+
+**Examples:**
+```
+search_chromium_commits(query="password manager")
+search_chromium_commits(query="memory leak", author="chrome-metrics", limit=10)
+search_chromium_commits(query="security fix", since="2025-06-01", until="2025-06-10")
+search_chromium_commits(query="WebContents", author="@chromium.org", limit=5)
+```
+
+**Returns:**
+- **Commit List**: Commits matching the search criteria with summaries and details
+- **Commit Metadata**: Author, date, commit hash, and full commit message
+- **Direct Links**: URLs to view commits in Gitiles and associated Gerrit reviews
+- **Review Integration**: Automatic detection and linking of Gerrit review URLs
+- **Rich Formatting**: Proper display of commit messages with summaries and bodies
+
 ## Sample Usage Examples
 
 <details>
@@ -346,6 +374,59 @@ Show me how the header file changed in CL 4567890
 </details>
 
 <details>
+<summary>📝 Commit History Search Examples</summary>
+
+### Recent Changes and Trends
+```
+Find recent password manager commits in the last month
+Search for memory leak fixes by the Chrome team
+Look for security patches committed this week
+Find commits mentioning "performance improvement"
+```
+
+### Author and Team Analysis
+```
+Find all commits by a specific developer in the last 6 months
+Search for commits by the Chrome metrics team
+Look for automated commits by LUCI bots
+Find contributions by external contributors
+```
+
+### Bug Tracking and Fixes
+```
+Search for commits referencing specific bug numbers
+Find commits that mention "crash" or "stability"
+Look for commits with "revert" in the message
+Search for commits that reference specific Gerrit CLs
+```
+
+### Feature Development Tracking
+```
+Find commits related to new web platform features
+Search for commits mentioning specific APIs or interfaces
+Track the development of experimental features
+Find commits related to deprecation of old features
+```
+
+### Code Quality and Maintenance
+```
+Search for commits with "cleanup" or "refactor"
+Find commits that mention code review feedback
+Look for commits that update documentation
+Search for commits that add or update tests
+```
+
+### Date-Range Analysis
+```
+Find all commits in a specific date range
+Search for commits before a major release
+Look for commits during a specific development sprint
+Find commits around the time of a known issue
+```
+
+</details>
+
+<details>
 <summary>🎨 Specialized Use Cases</summary>
 
 ### Security Research
@@ -500,6 +581,13 @@ Use get_gerrit_patchset_file to get the content of "chrome/browser/ui/browser.cc
 **Find code reviewers for a file:**
 ```
 Use find_chromium_owners_file to find who can review changes to "chrome/browser/ui/browser.cc"
+```
+
+**Search commit history:**
+```
+Use search_chromium_commits to find commits mentioning "password manager" in the last month
+Use search_chromium_commits to search for security fixes by Chrome team members
+Use search_chromium_commits to find recent commits by a specific author
 ```
 
 ## Sample Results
