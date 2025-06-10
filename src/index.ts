@@ -296,6 +296,36 @@ class ChromiumCodeSearchServer {
               required: ["file_path"],
             },
           },
+          {
+            name: "search_chromium_commits",
+            description: "Search commit messages and metadata in the Chromium repository using Gitiles API",
+            inputSchema: {
+              type: "object",
+              properties: {
+                query: {
+                  type: "string",
+                  description: "Search query for commit messages, file paths, or metadata",
+                },
+                author: {
+                  type: "string",
+                  description: "Filter by author name or email (optional)",
+                },
+                since: {
+                  type: "string",
+                  description: "Only commits after this date (YYYY-MM-DD format, optional)",
+                },
+                until: {
+                  type: "string",
+                  description: "Only commits before this date (YYYY-MM-DD format, optional)",
+                },
+                limit: {
+                  type: "number",
+                  description: "Maximum number of commits to return (default: 20, max: 100)",
+                },
+              },
+              required: ["query"],
+            },
+          },
         ],
       };
     });
@@ -332,6 +362,9 @@ class ChromiumCodeSearchServer {
             break;
           case "find_chromium_owners_file":
             result = await this.findChromiumOwnersFile(args);
+            break;
+          case "search_chromium_commits":
+            result = await this.searchChromiumCommits(args);
             break;
           default:
             throw new Error(`Unknown tool: ${name}`);
@@ -1733,6 +1766,138 @@ class ChromiumCodeSearchServer {
         ],
       };
     }
+  }
+
+  private async searchChromiumCommits(args: any) {
+    const { query, author, since, until, limit = 20 } = args;
+    const maxLimit = Math.min(limit, 100); // Cap at 100 commits
+    
+    try {
+      this.log('debug', 'Searching commits', { query, author, since, until, limit: maxLimit });
+      
+      // Build the Gitiles log API URL
+      let apiUrl = `https://chromium.googlesource.com/chromium/src/+log?format=JSON&n=${maxLimit}`;
+      
+      // Add query parameter
+      if (query) {
+        apiUrl += `&q=${encodeURIComponent(query)}`;
+      }
+      
+      // Add author filter if provided
+      if (author) {
+        apiUrl += `&author=${encodeURIComponent(author)}`;
+      }
+      
+      // Add date filters if provided
+      if (since) {
+        apiUrl += `&since=${encodeURIComponent(since)}`;
+      }
+      
+      if (until) {
+        apiUrl += `&until=${encodeURIComponent(until)}`;
+      }
+      
+      this.log('debug', 'Fetching commits from Gitiles', { apiUrl: apiUrl.substring(0, 100) + '...' });
+      
+      const response = await fetch(apiUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+      });
+
+      if (!response.ok) {
+        throw new ChromiumSearchError(`Failed to search commits: HTTP ${response.status}`);
+      }
+
+      const responseText = await response.text();
+      
+      // Remove the XSSI protection prefix ")]}''" if present
+      const jsonText = responseText.startsWith(")]}'") ? responseText.substring(4) : responseText;
+      const data = JSON.parse(jsonText);
+      
+      if (!data.log || data.log.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No commits found for query: "${query}"\n\n🔍 **Try different search terms or expand date range**`,
+            },
+          ],
+        };
+      }
+
+      // Format results
+      let resultText = `## Commit Search Results for "${query}"\n\n`;
+      resultText += `📊 **Found:** ${data.log.length} commit${data.log.length === 1 ? '' : 's'}\n`;
+      
+      if (author) resultText += `👤 **Author filter:** ${author}\n`;
+      if (since) resultText += `📅 **Since:** ${since}\n`;
+      if (until) resultText += `📅 **Until:** ${until}\n`;
+      
+      resultText += `\n`;
+
+      data.log.forEach((commit: any, index: number) => {
+        const shortHash = commit.commit.substring(0, 12);
+        const author = commit.author.name;
+        const email = commit.author.email;
+        const date = new Date(commit.author.time).toLocaleDateString();
+        const message = commit.message.trim();
+        
+        // Extract the first line (summary) and remaining lines (body)
+        const messageLines = message.split('\n');
+        const summary = messageLines[0];
+        const hasBody = messageLines.length > 1 && messageLines.slice(1).some((line: string) => line.trim());
+        
+        resultText += `### ${index + 1}. ${summary}\n`;
+        resultText += `**Commit:** \`${shortHash}\` | **Author:** ${author} | **Date:** ${date}\n`;
+        
+        // Show body if it exists (first few lines)
+        if (hasBody) {
+          const bodyLines = messageLines.slice(1).filter((line: string) => line.trim()).slice(0, 3);
+          if (bodyLines.length > 0) {
+            resultText += `\n${bodyLines.join('\n')}\n`;
+            if (messageLines.length > 5) {
+              resultText += `\n*[...commit message continues...]*\n`;
+            }
+          }
+        }
+        
+        // Add links
+        const commitUrl = `https://chromium.googlesource.com/chromium/src/+/${commit.commit}`;
+        const gerritUrl = this.extractGerritUrl(message);
+        
+        resultText += `\n🔗 **Commit:** [${shortHash}](${commitUrl})`;
+        if (gerritUrl) {
+          resultText += ` | **Review:** [${gerritUrl.match(/(\d+)$/)?.[1] || 'CL'}](${gerritUrl})`;
+        }
+        
+        resultText += `\n\n`;
+      });
+      
+      // Add pagination info if we hit the limit
+      if (data.log.length >= maxLimit) {
+        resultText += `\n📄 **Note:** Showing first ${maxLimit} results. Use more specific search terms for better results.\n`;
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: resultText,
+          },
+        ],
+      };
+      
+    } catch (error: any) {
+      this.log('error', 'Failed to search commits', { query, error: error.message });
+      throw new ChromiumSearchError(`Commit search failed: ${error.message}`);
+    }
+  }
+
+  private extractGerritUrl(commitMessage: string): string | null {
+    // Extract Gerrit review URL from commit message
+    const gerritMatch = commitMessage.match(/https:\/\/chromium-review\.googlesource\.com\/c\/chromium\/src\/\+\/(\d+)/);
+    return gerritMatch ? gerritMatch[0] : null;
   }
 
   private escapeRegexChars(query: string): string {
