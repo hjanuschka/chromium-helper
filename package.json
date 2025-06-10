@@ -1,0 +1,56 @@
+{
+  "name": "chromium-codesearch-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for searching Chromium source code via source.chromium.org with advanced Code Search syntax support",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "chromium-codesearch-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "test": "node test-mcp.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "chromium",
+    "code-search",
+    "gerrit",
+    "blink",
+    "google",
+    "search",
+    "claude",
+    "ai"
+  ],
+  "author": "Chromium CodeSearch MCP Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hjanuschka/chromium-codesearch-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hjanuschka/chromium-codesearch-mcp/issues"
+  },
+  "homepage": "https://github.com/hjanuschka/chromium-codesearch-mcp#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "cheerio": "^1.1.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ]
+}
