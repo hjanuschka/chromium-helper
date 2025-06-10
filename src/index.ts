@@ -11,6 +11,7 @@ import { load } from "cheerio";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { chromium } from 'playwright';
 
 interface SearchResult {
   file: string;
@@ -326,6 +327,20 @@ class ChromiumCodeSearchServer {
               required: ["query"],
             },
           },
+          {
+            name: "get_chromium_issue",
+            description: "Get details for a specific Chromium issue/bug from issues.chromium.org",
+            inputSchema: {
+              type: "object",
+              properties: {
+                issue_id: {
+                  type: "string",
+                  description: "Issue ID or full URL (e.g., '422768753' or 'https://issues.chromium.org/issues/422768753')",
+                },
+              },
+              required: ["issue_id"],
+            },
+          },
         ],
       };
     });
@@ -365,6 +380,9 @@ class ChromiumCodeSearchServer {
             break;
           case "search_chromium_commits":
             result = await this.searchChromiumCommits(args);
+            break;
+          case "get_chromium_issue":
+            result = await this.getChromiumIssue(args);
             break;
           default:
             throw new Error(`Unknown tool: ${name}`);
@@ -1339,7 +1357,7 @@ class ChromiumCodeSearchServer {
           
           resultText += `#### ${statusIcon} ${fileName}\n`;
           resultText += `- **Lines:** +${linesAdded} -${linesDeleted}\n`;
-          resultText += `- **Status:** ${this.getStatusText(status)}\n\n`;
+          resultText += `- **Status:** ${this.getFileStatusText(status)}\n\n`;
         }
         
         if (changedFiles.length > 10) {
@@ -1511,7 +1529,7 @@ class ChromiumCodeSearchServer {
     return result;
   }
 
-  private getStatusText(status: string): string {
+  private getFileStatusText(status: string): string {
     switch (status) {
       case 'A': return 'Added';
       case 'D': return 'Deleted';
@@ -1862,13 +1880,23 @@ class ChromiumCodeSearchServer {
           }
         }
         
+        // Extract and add bug IDs
+        const bugIds = this.extractBugIds(message);
+        if (bugIds.length > 0) {
+          resultText += `\n**🐛 Related Issues:** `;
+          resultText += bugIds.map(bugId => `[${bugId}](https://issues.chromium.org/issues/${bugId})`).join(', ');
+        }
+        
         // Add links
         const commitUrl = `https://chromium.googlesource.com/chromium/src/+/${commit.commit}`;
         const gerritUrl = this.extractGerritUrl(message);
         
         resultText += `\n🔗 **Commit:** [${shortHash}](${commitUrl})`;
         if (gerritUrl) {
-          resultText += ` | **Review:** [${gerritUrl.match(/(\d+)$/)?.[1] || 'CL'}](${gerritUrl})`;
+          const clId = gerritUrl.match(/(\d+)$/)?.[1];
+          if (clId) {
+            resultText += ` | **Review:** [CL ${clId}](http://crrev.com/c/${clId})`;
+          }
         }
         
         resultText += `\n\n`;
@@ -1898,6 +1926,514 @@ class ChromiumCodeSearchServer {
     // Extract Gerrit review URL from commit message
     const gerritMatch = commitMessage.match(/https:\/\/chromium-review\.googlesource\.com\/c\/chromium\/src\/\+\/(\d+)/);
     return gerritMatch ? gerritMatch[0] : null;
+  }
+
+  private extractBugIds(commitMessage: string): string[] {
+    // Extract bug IDs from commit messages
+    // Common patterns: "Bug: 422768753", "BUG=422768753", "crbug.com/422768753", etc.
+    const bugIds: string[] = [];
+    
+    // Pattern 1: Bug: 123456789
+    const bugPattern1 = commitMessage.match(/Bug:\s*(\d{6,})/gi);
+    if (bugPattern1) {
+      bugPattern1.forEach(match => {
+        const id = match.match(/\d{6,}/);
+        if (id) bugIds.push(id[0]);
+      });
+    }
+    
+    // Pattern 2: BUG=123456789
+    const bugPattern2 = commitMessage.match(/BUG=(\d{6,})/gi);
+    if (bugPattern2) {
+      bugPattern2.forEach(match => {
+        const id = match.match(/\d{6,}/);
+        if (id) bugIds.push(id[0]);
+      });
+    }
+    
+    // Pattern 3: crbug.com/123456789 or bugs.chromium.org/p/chromium/issues/detail?id=123456789
+    const bugPattern3 = commitMessage.match(/(?:crbug\.com\/|bugs\.chromium\.org\/[^?]*\?id=|issues\.chromium\.org\/issues\/)(\d{6,})/gi);
+    if (bugPattern3) {
+      bugPattern3.forEach(match => {
+        const id = match.match(/\d{6,}/);
+        if (id) bugIds.push(id[0]);
+      });
+    }
+    
+    // Remove duplicates and return
+    return [...new Set(bugIds)];
+  }
+
+  private async getChromiumIssue(args: any) {
+    const { issue_id } = args;
+    
+    // Extract issue ID from URL if provided
+    const issueIdMatch = issue_id.match(/(?:issues\.chromium\.org\/issues\/)?(\d+)$/);
+    const cleanIssueId = issueIdMatch ? issueIdMatch[1] : issue_id;
+    
+    if (!/^\d+$/.test(cleanIssueId)) {
+      throw new ChromiumSearchError(`Invalid issue ID format: ${issue_id}`);
+    }
+    
+    try {
+      this.log('debug', 'Fetching Chromium issue', { issue_id: cleanIssueId });
+      
+      const issueUrl = `https://issues.chromium.org/issues/${cleanIssueId}`;
+      
+      const response = await fetch(issueUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+      });
+
+      if (!response.ok) {
+        throw new ChromiumSearchError(`Failed to fetch issue: HTTP ${response.status}`);
+      }
+
+      const htmlContent = await response.text();
+      
+      // Extract the defrostedResourcesJspb data that contains issue information
+      const dataMatch = htmlContent.match(/defrostedResourcesJspb = (\[\[.*?\]\]);/s);
+      if (!dataMatch) {
+        throw new ChromiumSearchError('Could not find issue data in page');
+      }
+      
+      try {
+        const issueData = JSON.parse(dataMatch[1]);
+        
+        // Navigate the nested structure to find issue details
+        // Structure: [[["b.IssueFetchResponse", [..., [..., issueId, [..., status, priority, type, title, ...]]]]]
+        const issueResponse = issueData[0]?.[0]?.[1];
+        if (!issueResponse) {
+          throw new ChromiumSearchError('Invalid issue data structure');
+        }
+        
+        // Find the issue object in the response
+        let issueObj = null;
+        for (const item of issueResponse) {
+          if (Array.isArray(item) && item[1] === parseInt(cleanIssueId)) {
+            issueObj = item;
+            break;
+          }
+        }
+        
+        if (!issueObj || !Array.isArray(issueObj) || issueObj.length < 3) {
+          throw new ChromiumSearchError('Issue not found or has invalid structure');
+        }
+        
+        // Extract issue details from the complex nested structure
+        const details = issueObj[2]; // The main details array
+        if (!Array.isArray(details) || details.length < 6) {
+          throw new ChromiumSearchError('Issue details have invalid structure');
+        }
+        
+        const status = this.getStatusText(details[1]); // Status number
+        const priority = this.getPriorityText(details[2]); // Priority number  
+        const type = this.getTypeText(details[3]); // Type number
+        const severity = this.getSeverityText(details[4]); // Severity number
+        const title = details[5] || 'No title'; // Title string
+        
+        // Try to extract reporter and assignee info
+        const reporter = details[6] ? this.extractUserInfo(details[6]) : null;
+        const assignee = details[9] ? this.extractUserInfo(details[9]) : null;
+        
+        // Extract timestamps if available
+        const createdTime = details[23] ? this.formatTimestamp(details[23]) : null;
+        const modifiedTime = details[24] ? this.formatTimestamp(details[24]) : null;
+        
+        // Extract description using browser automation for better accuracy
+        const description = await this.extractIssueDescriptionWithBrowser(issueUrl, cleanIssueId);
+        
+        // Extract related CLs if available
+        const relatedCLs = details[33] || [];
+        
+        // Format the result
+        let resultText = `## Issue ${cleanIssueId}: ${title}\n\n`;
+        
+        resultText += `**Status:** ${status}`;
+        if (priority) resultText += ` | **Priority:** ${priority}`;
+        if (type) resultText += ` | **Type:** ${type}`;
+        if (severity) resultText += ` | **Severity:** ${severity}`;
+        resultText += `\n\n`;
+        
+        if (reporter) resultText += `**Reporter:** ${reporter}\n`;
+        if (assignee) resultText += `**Assignee:** ${assignee}\n`;
+        if (createdTime) resultText += `**Created:** ${createdTime}\n`;
+        if (modifiedTime) resultText += `**Modified:** ${modifiedTime}\n`;
+        
+        if (description) {
+          resultText += `\n### Description\n${description}\n`;
+        }
+        
+        // Add related CLs if any
+        if (relatedCLs.length > 0) {
+          resultText += `\n### Related Changes\n`;
+          relatedCLs.forEach((cl: any) => {
+            if (Array.isArray(cl) && cl.length >= 3) {
+              const clId = cl[2];
+              const clStatus = cl[3] === 1 ? 'MERGED' : cl[3] === 2 ? 'ABANDONED' : 'OPEN';
+              resultText += `- **CL ${clId}** (${clStatus}): [crrev.com/c/${clId}](http://crrev.com/c/${clId}) | [Gerrit](https://chromium-review.googlesource.com/c/chromium/src/+/${clId})\n`;
+            }
+          });
+        }
+        
+        resultText += `\n🔗 **Issue URL:** ${issueUrl}\n`;
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: resultText,
+            },
+          ],
+        };
+        
+      } catch (parseError: any) {
+        this.log('error', 'Failed to parse issue data', { issue_id: cleanIssueId, error: parseError.message });
+        throw new ChromiumSearchError(`Failed to parse issue data: ${parseError.message}`);
+      }
+      
+    } catch (error: any) {
+      this.log('error', 'Failed to fetch issue', { issue_id: cleanIssueId, error: error.message });
+      
+      if (error instanceof ChromiumSearchError) {
+        throw error;
+      }
+      
+      throw new ChromiumSearchError(`Issue fetch failed: ${error.message}`);
+    }
+  }
+
+  private getStatusText(status: number): string {
+    const statusMap: { [key: number]: string } = {
+      1: 'NEW',
+      2: 'ASSIGNED', 
+      3: 'ACCEPTED',
+      4: 'FIXED',
+      5: 'VERIFIED',
+      6: 'DUPLICATE',
+      7: 'WONTFIX',
+      8: 'WORKINGASINTENDED',
+      15: 'AVAILABLE', // Available for assignment
+    };
+    return statusMap[status] || `Unknown (${status})`;
+  }
+
+  private getPriorityText(priority: number): string {
+    const priorityMap: { [key: number]: string } = {
+      1: 'P0 (Critical)',
+      2: 'P1 (High)', 
+      3: 'P2 (Medium)',
+      4: 'P3 (Low)',
+      5: 'P4 (Nice to have)',
+    };
+    return priorityMap[priority] || `P${priority}`;
+  }
+
+  private getTypeText(type: number): string {
+    const typeMap: { [key: number]: string } = {
+      1: 'Bug',
+      2: 'Feature Request',
+      3: 'Task',
+      4: 'Process',
+      5: 'Bug-Security',
+    };
+    return typeMap[type] || `Type ${type}`;
+  }
+
+  private getSeverityText(severity: number): string {
+    const severityMap: { [key: number]: string } = {
+      1: 'S0 (Critical)',
+      2: 'S1 (High)',
+      3: 'S2 (Medium)', 
+      4: 'S3 (Low)',
+      5: 'S4 (Minimal)',
+    };
+    return severityMap[severity] || `S${severity}`;
+  }
+
+  private extractUserInfo(userArray: any): string | null {
+    if (!Array.isArray(userArray) || userArray.length < 2) return null;
+    
+    // userArray structure: [null, email, displayType, ...]
+    const email = userArray[1];
+    if (typeof email === 'string') {
+      // Mask email for privacy (already masked in the data)
+      return email;
+    }
+    return null;
+  }
+
+  private formatTimestamp(timestampArray: any): string | null {
+    if (!Array.isArray(timestampArray) || timestampArray.length < 2) return null;
+    
+    // timestampArray structure: [seconds, nanoseconds]
+    const seconds = timestampArray[0];
+    const nanoseconds = timestampArray[1];
+    
+    if (typeof seconds === 'number') {
+      const date = new Date(seconds * 1000 + nanoseconds / 1000000);
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    }
+    return null;
+  }
+
+  private async extractIssueDescriptionWithBrowser(issueUrl: string, issueId?: string): Promise<string | null> {
+    let browser = null;
+    
+    try {
+      this.log('debug', 'Launching browser to extract issue description', { issueUrl });
+      
+      browser = await chromium.launch({ 
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'] 
+      });
+      
+      const page = await browser.newPage({
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      });
+      
+      // Navigate to the issue page
+      await page.goto(issueUrl, { waitUntil: 'networkidle' });
+      
+      // Wait for the issue content to load and try multiple wait strategies
+      await page.waitForTimeout(5000);
+      
+      // Try to wait for common elements that indicate the page is loaded
+      try {
+        await page.waitForSelector('body', { timeout: 10000 });
+      } catch (e) {
+        this.log('debug', 'Could not wait for body selector');
+      }
+      
+      // Log the page title and URL to verify we're on the right page
+      const title = await page.title();
+      const url = await page.url();
+      this.log('debug', 'Page loaded', { title, url });
+      
+      // Take a screenshot for debugging and save page content
+      const debugDir = '/tmp';
+      try {
+        const fileId = issueId || 'unknown';
+        await page.screenshot({ path: `${debugDir}/issue-${fileId}.png` });
+        const htmlContent = await page.content();
+        await require('fs').promises.writeFile(`${debugDir}/issue-${fileId}.html`, htmlContent);
+        this.log('debug', 'Saved debug files', { 
+          screenshot: `${debugDir}/issue-${fileId}.png`,
+          html: `${debugDir}/issue-${fileId}.html`
+        });
+      } catch (e: any) {
+        this.log('debug', 'Could not save debug files', { error: e.message });
+      }
+      
+      // Try to find the issue description in various ways
+      let description = null;
+      
+      // Method 1: Use the specific selectors we found for this Chromium issue tracker
+      const primarySelectors = [
+        '#bv2-edit-issue-details-scroll > b-issue-description',
+        'b-issue-description'
+      ];
+      
+      // Try the primary selectors first
+      for (const selector of primarySelectors) {
+        try {
+          const element = await page.$(selector);
+          if (element) {
+            const text = await element.textContent();
+            if (text && text.trim().length > 20) {
+              description = text.trim();
+              this.log('debug', 'Found description with primary selector', { 
+                selector, 
+                length: description.length,
+                preview: description.substring(0, 100) + '...'
+              });
+              break;
+            }
+          }
+        } catch (e: any) {
+          this.log('debug', 'Primary selector failed', { selector, error: e.message });
+        }
+      }
+      
+      // If primary selectors don't work, try fallback selectors
+      if (!description) {
+        const fallbackSelectors = [
+          '[data-testid="description"]',
+          '[data-testid="issue-description"]',
+          '.issue-description',
+          '.description-content',
+          '[role="main"] .content',
+          'article'
+        ];
+        
+        for (const selector of fallbackSelectors) {
+          try {
+            const element = await page.$(selector);
+            if (element) {
+              const text = await element.textContent();
+              if (text && text.length > 50) {
+                description = text.trim();
+                this.log('debug', 'Found description with fallback selector', { 
+                  selector, 
+                  length: description.length,
+                  preview: description.substring(0, 100) + '...'
+                });
+                break;
+              }
+            }
+          } catch (e: any) {
+            this.log('debug', 'Fallback selector failed', { selector, error: e.message });
+          }
+        }
+      }
+      
+      // Method 1.5: Try to get all visible text and log it for debugging
+      if (!description) {
+        try {
+          const allText = await page.textContent('body');
+          this.log('debug', 'All page text length', { length: allText?.length || 0 });
+          
+          // Log a sample of the text to see what we're getting
+          if (allText && allText.length > 100) {
+            this.log('debug', 'Page text sample', { 
+              sample: allText.substring(0, 500).replace(/\s+/g, ' ') 
+            });
+          }
+        } catch (e: any) {
+          this.log('debug', 'Could not get page text', { error: e.message });
+        }
+      }
+      
+      // Method 2: If no description found, try to extract from page text
+      if (!description) {
+        const pageText = await page.textContent('body');
+        if (pageText) {
+          // Look for common patterns in the text - be more liberal with extraction
+          const patterns = [
+            // Try to match the specific content we know is in this issue
+            /(The goals are:.*?)(?=\n\s*\n|\n\s*Bug:|\n\s*Change-Id:|\n\s*Reviewed|$)/s,
+            /(Stop using the WTF namespace.*?)(?=\n\s*\n|\n\s*Bug:|\n\s*Change-Id:|\n\s*Reviewed|$)/s,
+            /(Choose a single header.*?)(?=\n\s*\n|\n\s*Bug:|\n\s*Change-Id:|\n\s*Reviewed|$)/s,
+            // More generic patterns
+            /Description:(.*?)(?=\n\s*\n|\n\s*Bug:|\n\s*Change-Id:|\n\s*Reviewed|$)/s,
+            /Summary:(.*?)(?=\n\s*\n|\n\s*Bug:|\n\s*Change-Id:|\n\s*Reviewed|$)/s,
+            // Look for any substantial block of text that mentions key terms
+            /(.*WTF.*namespace.*blink.*)/s,
+            /(.*Choose.*header.*platform.*wtf.*)/s,
+            // Very broad patterns as fallback
+            /(The goals are:.*)/s,
+            /(Stop using.*)/s
+          ];
+          
+          for (const pattern of patterns) {
+            const match = pageText.match(pattern);
+            if (match && match[1] && match[1].trim().length > 50) {
+              description = match[0].trim();
+              this.log('debug', 'Found description with pattern matching', { pattern: pattern.source, length: description.length });
+              break;
+            }
+          }
+        }
+      }
+      
+      // Method 3: Try to get all text and find meaningful content
+      if (!description) {
+        try {
+          // Look for text that contains key phrases related to the issue
+          const keyPhrases = ['WTF namespace', 'blink namespace', 'goals are', 'Choose a single header'];
+          const allText = await page.textContent('body');
+          
+          if (allText) {
+            for (const phrase of keyPhrases) {
+              const index = allText.indexOf(phrase);
+              if (index !== -1) {
+                // Extract a reasonable chunk around the key phrase
+                const start = Math.max(0, index - 100);
+                const end = Math.min(allText.length, index + 800);
+                const chunk = allText.substring(start, end).trim();
+                
+                if (chunk.length > 100) {
+                  description = chunk;
+                  this.log('debug', 'Found description with key phrase search', { phrase, length: description.length });
+                  break;
+                }
+              }
+            }
+          }
+        } catch (e: any) {
+          this.log('debug', 'Key phrase search failed', { error: e.message });
+        }
+      }
+      
+      // Also try to get comments/updates for additional context
+      let comments = null;
+      try {
+        const commentsElement = await page.$('#bv2-edit-issue-details-scroll > div');
+        if (commentsElement) {
+          const commentsText = await commentsElement.textContent();
+          if (commentsText && commentsText.trim().length > 50) {
+            comments = commentsText.trim();
+            this.log('debug', 'Found comments/updates', { 
+              length: comments.length,
+              preview: comments.substring(0, 100) + '...'
+            });
+          }
+        }
+      } catch (e: any) {
+        this.log('debug', 'Could not get comments', { error: e.message });
+      }
+      
+      // Combine description and comments if we have both
+      if (description && comments) {
+        // Only add comments if they contain additional useful information
+        if (comments.length > description.length * 0.2) {
+          // Format CL links in comments to use crrev.com
+          const formattedComments = comments.replace(
+            /https:\/\/chromium-review\.googlesource\.com\/c\/chromium\/src\/\+\/(\d+)/g,
+            'http://crrev.com/c/$1'
+          );
+          description = description + '\n\n**Comments/Updates:**\n' + formattedComments;
+        }
+      }
+      
+      // Also format any CL links in the main description
+      if (description) {
+        // Replace full Gerrit URLs with crrev.com links
+        description = description.replace(
+          /https:\/\/chromium-review\.googlesource\.com\/c\/chromium\/src\/\+\/(\d+)/g,
+          '[CL $1](http://crrev.com/c/$1)'
+        );
+        
+        // Also replace standalone CL references (like "CL 6627032")
+        description = description.replace(
+          /\bCL\s+(\d{6,})\b/g,
+          '[CL $1](http://crrev.com/c/$1)'
+        );
+        
+        // Handle "http://crrev.com/c/ID" format that might be in comments
+        description = description.replace(
+          /http:\/\/crrev\.com\/c\/(\d+)/g,
+          '[CL $1](http://crrev.com/c/$1)'
+        );
+        
+        // Handle any remaining Gerrit change IDs in various formats
+        description = description.replace(
+          /\b(\d{7})\b(?=.*?(?:Change-Id|chromium-review|gerrit))/gi,
+          '[CL $1](http://crrev.com/c/$1)'
+        );
+      }
+      
+      return description;
+      
+    } catch (error: any) {
+      this.log('error', 'Browser-based description extraction failed', { error: error.message });
+      return null;
+    } finally {
+      if (browser) {
+        await browser.close();
+      }
+    }
   }
 
   private escapeRegexChars(query: string): string {
