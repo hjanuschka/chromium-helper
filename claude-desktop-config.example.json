@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "chromium-codesearch": {
+      "command": "node",
+      "args": ["/path/to/chromium-codesearch-mcp/dist/index.js"]
+    }
+  }
+}
