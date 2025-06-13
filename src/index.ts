@@ -283,6 +283,88 @@ class ChromiumCodeSearchServer {
               required: ["cl_number", "file_path"],
             },
           },
+          // PDFium Gerrit tools
+          {
+            name: "get_pdfium_gerrit_cl_status",
+            description: "Get status and test results for a PDFium Gerrit CL",
+            inputSchema: {
+              type: "object",
+              properties: {
+                cl_number: {
+                  type: "string",
+                  description: "CL number or full Gerrit URL (e.g., '12345' or 'https://pdfium-review.googlesource.com/c/pdfium/+/12345')",
+                },
+              },
+              required: ["cl_number"],
+            },
+          },
+          {
+            name: "get_pdfium_gerrit_cl_comments",
+            description: "Get review comments for a PDFium Gerrit CL patchset",
+            inputSchema: {
+              type: "object",
+              properties: {
+                cl_number: {
+                  type: "string",
+                  description: "CL number or full Gerrit URL (e.g., '12345' or 'https://pdfium-review.googlesource.com/c/pdfium/+/12345')",
+                },
+                patchset: {
+                  type: "number",
+                  description: "Optional specific patchset number to get comments for (if not specified, gets comments for current patchset)",
+                },
+                include_resolved: {
+                  type: "boolean",
+                  description: "Include resolved comments (default: true)",
+                  default: true,
+                },
+              },
+              required: ["cl_number"],
+            },
+          },
+          {
+            name: "get_pdfium_gerrit_cl_diff",
+            description: "Get the diff/changes for a PDFium Gerrit CL patchset to understand what code was modified",
+            inputSchema: {
+              type: "object",
+              properties: {
+                cl_number: {
+                  type: "string",
+                  description: "CL number or full Gerrit URL (e.g., '12345' or 'https://pdfium-review.googlesource.com/c/pdfium/+/12345')",
+                },
+                patchset: {
+                  type: "number",
+                  description: "Optional specific patchset number to get diff for (if not specified, gets diff for current patchset)",
+                },
+                file_path: {
+                  type: "string",
+                  description: "Optional specific file path to get diff for (if not specified, gets diff for all files)",
+                },
+              },
+              required: ["cl_number"],
+            },
+          },
+          {
+            name: "get_pdfium_gerrit_patchset_file",
+            description: "Get the content of a specific file from a PDFium Gerrit patchset for making code changes",
+            inputSchema: {
+              type: "object",
+              properties: {
+                cl_number: {
+                  type: "string",
+                  description: "CL number or full Gerrit URL (e.g., '12345' or 'https://pdfium-review.googlesource.com/c/pdfium/+/12345')",
+                },
+                file_path: {
+                  type: "string",
+                  description: "Path to the file to get content for (e.g., 'core/fpdfapi/parser/cpdf_parser.cpp')",
+                },
+                patchset: {
+                  type: "number",
+                  description: "Optional specific patchset number (if not specified, gets file from current patchset)",
+                },
+              },
+              required: ["cl_number", "file_path"],
+            },
+          },
           {
             name: "find_chromium_owners_file",
             description: "Find OWNERS files for a given file path in Chromium source code by searching up the directory tree",
@@ -374,6 +456,19 @@ class ChromiumCodeSearchServer {
             break;
           case "get_gerrit_patchset_file":
             result = await this.getGerritPatchsetFile(args);
+            break;
+          // PDFium Gerrit handlers
+          case "get_pdfium_gerrit_cl_status":
+            result = await this.getPDFiumGerritCLStatus(args);
+            break;
+          case "get_pdfium_gerrit_cl_comments":
+            result = await this.getPDFiumGerritCLComments(args);
+            break;
+          case "get_pdfium_gerrit_cl_diff":
+            result = await this.getPDFiumGerritCLDiff(args);
+            break;
+          case "get_pdfium_gerrit_patchset_file":
+            result = await this.getPDFiumGerritPatchsetFile(args);
             break;
           case "find_chromium_owners_file":
             result = await this.findChromiumOwnersFile(args);
@@ -2597,6 +2692,580 @@ class ChromiumCodeSearchServer {
     return results;
   }
 
+
+  // PDFium Gerrit methods
+  private async getPDFiumGerritCLStatus(args: any) {
+    const { cl_number } = args;
+    
+    // Extract CL number from URL if provided
+    const clMatch = cl_number.match(/(\d+)$/);
+    const clId = clMatch ? clMatch[1] : cl_number;
+    
+    try {
+      // Fetch CL details
+      const detailsUrl = `https://pdfium-review.googlesource.com/changes/?q=change:${clId}&o=DETAILED_ACCOUNTS&o=CURRENT_REVISION&o=SUBMIT_REQUIREMENTS&o=MESSAGES`;
+      const response = await fetch(detailsUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new GerritAPIError(`Failed to fetch CL status: ${response.status}`, response.status);
+      }
+
+      const responseText = await response.text();
+      // Remove the XSSI protection prefix
+      const jsonText = responseText.replace(/^\)]}'\n/, '');
+      const data = JSON.parse(jsonText);
+      
+      if (!data || data.length === 0) {
+        throw new GerritAPIError(`PDFium CL ${clId} not found`);
+      }
+      
+      const cl = data[0];
+      
+      // Fetch messages for LUCI status
+      const messages = await this.fetchPDFiumGerritMessages(clId);
+      const luciRuns = this.extractLuciRuns(messages);
+      
+      // Format the result
+      let resultText = `## PDFium CL ${clId}: ${cl.subject}\n\n`;
+      resultText += `**Status:** ${cl.status}\n`;
+      resultText += `**Author:** ${cl.owner.name} (${cl.owner.email})\n`;
+      resultText += `**Created:** ${new Date(cl.created).toLocaleDateString()}\n`;
+      resultText += `**Updated:** ${new Date(cl.updated).toLocaleDateString()}\n`;
+      resultText += `**Current Patchset:** ${cl.revisions[cl.current_revision]._number}\n\n`;
+      
+      // Submit requirements
+      if (cl.submit_requirements) {
+        resultText += `### ✅ Submit Requirements:\n`;
+        for (const req of cl.submit_requirements) {
+          const status = req.status === 'SATISFIED' ? '✅' : 
+                        req.status === 'UNSATISFIED' ? '❌' : '❓';
+          resultText += `- ${status} **${req.name}**: ${req.status}\n`;
+          
+          if (req.submittability_expression_result) {
+            const exprResult = req.submittability_expression_result;
+            if (exprResult.status === 'FAIL' && exprResult.error_message) {
+              resultText += `  - Error: ${exprResult.error_message}\n`;
+            }
+          }
+        }
+        resultText += `\n`;
+      }
+      
+      // LUCI test results
+      if (luciRuns.length > 0) {
+        resultText += `### 🧪 Test Results:\n`;
+        for (const run of luciRuns) {
+          resultText += `\n**Patchset ${run.patchset}:** ${run.status}\n`;
+          
+          const passRate = this.calculatePassRate(run);
+          if (passRate !== null) {
+            resultText += `📊 Pass rate: ${passRate}%\n`;
+          }
+          
+          if (run.luciUrl) {
+            resultText += `🔗 [View test details in LUCI](${run.luciUrl})\n`;
+          }
+          
+          if (run.message) {
+            resultText += `💬 ${run.message}\n`;
+          }
+        }
+      } else {
+        resultText += `\n### 🧪 Test Results:\n`;
+        resultText += `No LUCI runs found yet. Tests may still be queued.\n`;
+      }
+      
+      // Links
+      resultText += `\n### 🔗 Links:\n`;
+      resultText += `- **Gerrit:** https://pdfium-review.googlesource.com/c/pdfium/+/${clId}\n`;
+      
+      // Comments summary
+      if (cl.total_comment_count > 0) {
+        resultText += `\n### 💬 Comments:\n`;
+        resultText += `- Total: ${cl.total_comment_count}\n`;
+        resultText += `- Unresolved: ${cl.unresolved_comment_count}\n`;
+      }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: resultText,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to get PDFium CL status: ${error.message}\n\nTry viewing directly at: https://pdfium-review.googlesource.com/c/pdfium/+/${clId}`,
+          },
+        ],
+      };
+    }
+  }
+
+  private async fetchPDFiumGerritMessages(clId: string): Promise<any[]> {
+    try {
+      const messagesUrl = `https://pdfium-review.googlesource.com/changes/${clId}/messages`;
+      const response = await fetch(messagesUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        return [];
+      }
+      
+      const responseText = await response.text();
+      const jsonText = responseText.replace(/^\)]}'\n/, '');
+      return JSON.parse(jsonText);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  private async getPDFiumGerritCLComments(args: any) {
+    const { cl_number, patchset, include_resolved = true } = args;
+    
+    // Extract CL number from URL if provided
+    const clMatch = cl_number.match(/(\d+)$/);
+    const clId = clMatch ? clMatch[1] : cl_number;
+    
+    try {
+      // First get CL details to know current patchset if not specified
+      const clDetailsUrl = `https://pdfium-review.googlesource.com/changes/?q=change:${clId}&o=CURRENT_REVISION`;
+      const clResponse = await fetch(clDetailsUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!clResponse.ok) {
+        throw new Error(`Failed to fetch CL details: ${clResponse.status}`);
+      }
+      
+      const responseText = await clResponse.text();
+      const jsonText = responseText.replace(/^\)]}'/, '');
+      const clData = JSON.parse(jsonText);
+      
+      if (!clData || clData.length === 0) {
+        throw new Error(`PDFium CL ${clId} not found`);
+      }
+      
+      const cl = clData[0];
+      const targetPatchset = patchset || cl.current_revision_number || 1;
+      
+      // Get comments for the specified patchset
+      const commentsUrl = `https://pdfium-review.googlesource.com/changes/${clId}/revisions/${targetPatchset}/comments`;
+      const commentsResponse = await fetch(commentsUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!commentsResponse.ok) {
+        throw new Error(`Failed to fetch comments: ${commentsResponse.status}`);
+      }
+      
+      const commentsText = await commentsResponse.text();
+      const commentsJsonText = commentsText.replace(/^\)]}'/, '');
+      const commentsData = JSON.parse(commentsJsonText);
+      
+      // Also get draft comments if available
+      const draftsUrl = `https://pdfium-review.googlesource.com/changes/${clId}/revisions/${targetPatchset}/drafts`;
+      let draftsData = {};
+      try {
+        const draftsResponse = await fetch(draftsUrl, {
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
+        if (draftsResponse.ok) {
+          const draftsText = await draftsResponse.text();
+          const draftsJsonText = draftsText.replace(/^\)]}'/, '');
+          draftsData = JSON.parse(draftsJsonText);
+        }
+      } catch (error) {
+        // Drafts might not be accessible, ignore
+      }
+      
+      // Format the results
+      let resultText = `## Review Comments for PDFium CL ${clId}: ${cl.subject}\n\n`;
+      resultText += `**Patchset:** ${targetPatchset}\n`;
+      resultText += `**Author:** ${cl.owner.name}\n\n`;
+      
+      const allComments = this.organizeComments(commentsData, draftsData, include_resolved);
+      
+      if (allComments.length === 0) {
+        resultText += `### 💬 No comments found\n\n`;
+        resultText += `This patchset has no review comments yet.\n`;
+      } else {
+        // Group comments by file
+        const commentsByFile = new Map<string, any[]>();
+        
+        for (const comment of allComments) {
+          const fileName = comment.file || 'General Comments';
+          if (!commentsByFile.has(fileName)) {
+            commentsByFile.set(fileName, []);
+          }
+          commentsByFile.get(fileName)!.push(comment);
+        }
+        
+        const stats = this.getCommentStats(allComments);
+        resultText += `### 📊 Comment Summary\n`;
+        resultText += `- **Total:** ${stats.total} comments\n`;
+        resultText += `- **Unresolved:** ${stats.unresolved}\n`;
+        resultText += `- **Resolved:** ${stats.resolved}\n`;
+        if (stats.drafts > 0) {
+          resultText += `- **Drafts:** ${stats.drafts}\n`;
+        }
+        resultText += `- **Files with comments:** ${commentsByFile.size}\n\n`;
+        
+        // Display comments grouped by file
+        for (const [fileName, fileComments] of commentsByFile.entries()) {
+          if (fileName === 'General Comments') {
+            resultText += `### 💬 General Comments\n\n`;
+          } else {
+            resultText += `### 📄 ${fileName}\n\n`;
+          }
+          
+          // Sort comments by line number
+          fileComments.sort((a, b) => (a.line || 0) - (b.line || 0));
+          
+          for (const comment of fileComments) {
+            const author = comment.author?.name || 'Unknown';
+            const timestamp = comment.updated ? new Date(comment.updated).toLocaleDateString() : '';
+            const resolved = comment.resolved ? '✅' : '🔴';
+            const draft = comment.isDraft ? '📝 [DRAFT]' : '';
+            const lineInfo = comment.line ? `:${comment.line}` : '';
+            
+            resultText += `#### ${resolved} ${author} ${draft}\n`;
+            if (timestamp) {
+              resultText += `*${timestamp}*`;
+            }
+            if (lineInfo) {
+              resultText += ` - Line ${comment.line}`;
+            }
+            resultText += `\n\n`;
+            
+            // Quote the comment message
+            const message = comment.message || '';
+            resultText += `> ${message.split('\n').join('\n> ')}\n\n`;
+            
+            // Show code context if available
+            if (comment.line && fileName !== 'General Comments' && fileName !== 'Commit Message') {
+              try {
+                const codeContext = await this.getPDFiumCodeContextForComment(clId, targetPatchset, fileName, comment.line);
+                if (codeContext) {
+                  resultText += `**Code context (Line ${comment.line}):**\n`;
+                  resultText += `\`\`\`${this.getFileExtension(fileName)}\n`;
+                  resultText += codeContext;
+                  resultText += `\`\`\`\n\n`;
+                }
+              } catch (error) {
+                resultText += `**Code reference:** Line ${comment.line} in ${fileName}\n\n`;
+              }
+            }
+          }
+        }
+      }
+      
+      resultText += `### 🔗 Links\n`;
+      resultText += `- **Gerrit CL:** https://pdfium-review.googlesource.com/c/pdfium/+/${clId}/${targetPatchset}\n`;
+      resultText += `- **Comments view:** https://pdfium-review.googlesource.com/c/pdfium/+/${clId}/${targetPatchset}#comments\n`;
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: resultText,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to get PDFium CL comments: ${error.message}\n\nTry viewing directly at: https://pdfium-review.googlesource.com/c/pdfium/+/${clId}`,
+          },
+        ],
+      };
+    }
+  }
+
+  private async getPDFiumCodeContextForComment(clId: string, patchset: number, fileName: string, lineNumber: number): Promise<string | null> {
+    try {
+      // Get the file content from the patchset
+      const fileUrl = `https://pdfium-review.googlesource.com/changes/${clId}/revisions/${patchset}/files/${encodeURIComponent(fileName)}/content`;
+      const fileResponse = await fetch(fileUrl, {
+        headers: {
+          'Accept': 'text/plain',
+        },
+      });
+      
+      if (!fileResponse.ok) {
+        return null;
+      }
+      
+      // Gerrit returns base64 encoded content
+      const base64Content = await fileResponse.text();
+      const content = Buffer.from(base64Content, 'base64').toString('utf-8');
+      const lines = content.split('\n');
+      
+      // Get context around the comment line (±3 lines)
+      const contextStart = Math.max(0, lineNumber - 4);
+      const contextEnd = Math.min(lines.length, lineNumber + 3);
+      
+      let context = '';
+      for (let i = contextStart; i < contextEnd; i++) {
+        const displayLineNum = i + 1;
+        const marker = displayLineNum === lineNumber ? '➤' : ' ';
+        context += `${marker} ${displayLineNum.toString().padStart(4, ' ')}: ${lines[i]}\n`;
+      }
+      
+      return context;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  private async getPDFiumGerritCLDiff(args: any) {
+    const { cl_number, patchset, file_path } = args;
+    
+    // Extract CL number from URL if provided
+    const clMatch = cl_number.match(/(\d+)$/);
+    const clId = clMatch ? clMatch[1] : cl_number;
+    
+    try {
+      // First get CL details to know current patchset if not specified
+      const clDetailsUrl = `https://pdfium-review.googlesource.com/changes/?q=change:${clId}&o=CURRENT_REVISION`;
+      const clResponse = await fetch(clDetailsUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!clResponse.ok) {
+        throw new Error(`Failed to fetch CL details: ${clResponse.status}`);
+      }
+      
+      const responseText = await clResponse.text();
+      const jsonText = responseText.replace(/^\)]}'/, '');
+      const clData = JSON.parse(jsonText);
+      
+      if (!clData || clData.length === 0) {
+        throw new Error(`PDFium CL ${clId} not found`);
+      }
+      
+      const cl = clData[0];
+      const targetPatchset = patchset || cl.current_revision_number || 1;
+      const revision = cl.revisions[cl.current_revision];
+      
+      // Get the files list first to understand what changed
+      const filesUrl = `https://pdfium-review.googlesource.com/changes/${clId}/revisions/${targetPatchset}/files`;
+      const filesResponse = await fetch(filesUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!filesResponse.ok) {
+        throw new Error(`Failed to fetch files: ${filesResponse.status}`);
+      }
+      
+      const filesText = await filesResponse.text();
+      const filesJsonText = filesText.replace(/^\)]}'/, '');
+      const filesData = JSON.parse(filesJsonText);
+      
+      let resultText = `## Diff for PDFium CL ${clId}: ${cl.subject}\n\n`;
+      resultText += `**Patchset:** ${targetPatchset}\n`;
+      resultText += `**Author:** ${cl.owner.name}\n\n`;
+      
+      const changedFiles = Object.keys(filesData).filter(f => f !== '/COMMIT_MSG');
+      
+      if (file_path) {
+        // Get diff for specific file
+        if (!filesData[file_path]) {
+          resultText += `### ❌ File not found in this patchset\n\nFile \`${file_path}\` was not modified in patchset ${targetPatchset}.\n\n`;
+          resultText += `**Modified files:**\n${changedFiles.map(f => `- ${f}`).join('\n')}`;
+        } else {
+          const diffUrl = `https://pdfium-review.googlesource.com/changes/${clId}/revisions/${targetPatchset}/files/${encodeURIComponent(file_path)}/diff?base=${targetPatchset-1}&context=ALL&intraline`;
+          const diffResponse = await fetch(diffUrl, {
+            headers: {
+              'Accept': 'application/json',
+            },
+          });
+          
+          if (diffResponse.ok) {
+            const diffText = await diffResponse.text();
+            const diffJsonText = diffText.replace(/^\)]}'/, '');
+            const diffData = JSON.parse(diffJsonText);
+            
+            resultText += `### 📄 ${file_path}\n\n`;
+            resultText += this.formatDiff(diffData, file_path);
+          } else {
+            resultText += `### ❌ Could not fetch diff for ${file_path}\n\n`;
+          }
+        }
+      } else {
+        // Get overview of all changed files
+        resultText += `### 📊 Summary\n`;
+        resultText += `- **Files changed:** ${changedFiles.length}\n`;
+        resultText += `- **Commit:** ${revision?._number || 'Unknown'}\n\n`;
+        
+        resultText += `### 📁 Changed Files\n\n`;
+        
+        for (const fileName of changedFiles.slice(0, 10)) { // Limit to first 10 files
+          const fileInfo = filesData[fileName];
+          const status = fileInfo.status || 'M';
+          const statusIcon = status === 'A' ? '🆕' : status === 'D' ? '🗑️' : '✏️';
+          const linesAdded = fileInfo.lines_inserted || 0;
+          const linesDeleted = fileInfo.lines_deleted || 0;
+          
+          resultText += `#### ${statusIcon} ${fileName}\n`;
+          resultText += `- **Lines:** +${linesAdded} -${linesDeleted}\n`;
+          resultText += `- **Status:** ${this.getFileStatusText(status)}\n\n`;
+        }
+        
+        if (changedFiles.length > 10) {
+          resultText += `\n💡 *Showing first 10 files. Total: ${changedFiles.length} files changed.*\n`;
+        }
+        
+        resultText += `\n### 🔍 Get specific file diff:\n`;
+        resultText += `Use \`get_pdfium_gerrit_cl_diff(cl_number="${clId}", file_path="path/to/file")\` to see the actual code changes.\n`;
+      }
+      
+      resultText += `\n### 🔗 Links\n`;
+      resultText += `- **Gerrit diff view:** https://pdfium-review.googlesource.com/c/pdfium/+/${clId}/${targetPatchset}\n`;
+      if (file_path) {
+        resultText += `- **File diff:** https://pdfium-review.googlesource.com/c/pdfium/+/${clId}/${targetPatchset}/${encodeURIComponent(file_path)}\n`;
+      }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: resultText,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to get PDFium CL diff: ${error.message}\n\nTry viewing directly at: https://pdfium-review.googlesource.com/c/pdfium/+/${clId}`,
+          },
+        ],
+      };
+    }
+  }
+
+  private async getPDFiumGerritPatchsetFile(args: any) {
+    const { cl_number, file_path, patchset } = args;
+    
+    // Extract CL number from URL if provided
+    const clMatch = cl_number.match(/(\d+)$/);
+    const clId = clMatch ? clMatch[1] : cl_number;
+    
+    try {
+      // First get CL details to know current patchset if not specified
+      const clDetailsUrl = `https://pdfium-review.googlesource.com/changes/?q=change:${clId}&o=CURRENT_REVISION`;
+      const clResponse = await fetch(clDetailsUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!clResponse.ok) {
+        throw new Error(`Failed to fetch CL details: ${clResponse.status}`);
+      }
+      
+      const responseText = await clResponse.text();
+      const jsonText = responseText.replace(/^\)]}'/, '');
+      const clData = JSON.parse(jsonText);
+      
+      if (!clData || clData.length === 0) {
+        throw new Error(`PDFium CL ${clId} not found`);
+      }
+      
+      const cl = clData[0];
+      const targetPatchset = patchset || cl.current_revision_number || 1;
+      
+      // Get the file content from the patchset
+      const fileUrl = `https://pdfium-review.googlesource.com/changes/${clId}/revisions/${targetPatchset}/files/${encodeURIComponent(file_path)}/content`;
+      const fileResponse = await fetch(fileUrl, {
+        headers: {
+          'Accept': 'text/plain',
+        },
+      });
+      
+      if (!fileResponse.ok) {
+        if (fileResponse.status === 404) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `File not found: ${file_path}\n\nThis file may not exist in patchset ${targetPatchset} or may have been deleted.\n\nTry using get_pdfium_gerrit_cl_diff to see what files were changed.`,
+              },
+            ],
+          };
+        }
+        throw new Error(`Failed to fetch file content: ${fileResponse.status}`);
+      }
+      
+      // Gerrit returns base64 encoded content
+      const base64Content = await fileResponse.text();
+      const content = Buffer.from(base64Content, 'base64').toString('utf-8');
+      
+      let resultText = `## File: ${file_path}\n`;
+      resultText += `**CL:** ${clId} - ${cl.subject}\n`;
+      resultText += `**Patchset:** ${targetPatchset}\n`;
+      resultText += `**Author:** ${cl.owner.name}\n\n`;
+      
+      // Add file content with line numbers
+      const lines = content.split('\n');
+      resultText += `### 📄 Content (${lines.length} lines)\n\n`;
+      resultText += `\`\`\`${this.getFileExtension(file_path)}\n`;
+      
+      // Add line numbers for easier reference with comments
+      lines.forEach((line, index) => {
+        resultText += `${(index + 1).toString().padStart(4, ' ')}: ${line}\n`;
+      });
+      
+      resultText += `\`\`\`\n\n`;
+      
+      resultText += `### 🔗 Links\n`;
+      resultText += `- **Gerrit file view:** https://pdfium-review.googlesource.com/c/pdfium/+/${clId}/${targetPatchset}/${encodeURIComponent(file_path)}\n`;
+      resultText += `- **File diff:** https://pdfium-review.googlesource.com/c/pdfium/+/${clId}/${targetPatchset}/${encodeURIComponent(file_path)}?diff=1\n`;
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: resultText,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to get file content: ${error.message}\n\nTry viewing directly at: https://pdfium-review.googlesource.com/c/pdfium/+/${clId}`,
+          },
+        ],
+      };
+    }
+  }
 
   async run() {
     const transport = new StdioServerTransport();
