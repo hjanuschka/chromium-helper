@@ -224,6 +224,31 @@ async function main() {
       }
     });
 
+  gerrit
+    .command('bots')
+    .description('Get try-bot status for CL')
+    .argument('<cl>', 'CL number or URL')
+    .option('-p, --patchset <number>', 'specific patchset number')
+    .option('--failed-only', 'show only failed bots')
+    .action(async (cl, options) => {
+      try {
+        const globalOptions = program.opts();
+        api.setDebugMode(globalOptions.debug);
+        
+        const results = await api.getGerritCLTrybotStatus({
+          clNumber: cl,
+          patchset: options.patchset ? parseInt(options.patchset) : undefined,
+          failedOnly: options.failedOnly
+        });
+        
+        const format = program.opts().format as OutputFormat;
+        console.log(formatOutput(results, format, 'gerrit-bots'));
+      } catch (error) {
+        console.error('Gerrit bots failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
   // Owners command
   program
     .command('owners')

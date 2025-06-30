@@ -30,6 +30,8 @@ function formatAsTable(data: any, context: string): string {
       return formatGerritDiffTable(data);
     case 'gerrit-file':
       return formatGerritFileTable(data);
+    case 'gerrit-bots':
+      return formatGerritBotsTable(data);
     case 'owners':
       return formatOwnersTable(data);
     case 'commits':
@@ -57,6 +59,8 @@ function formatAsPlain(data: any, context: string): string {
       return formatGerritDiffPlain(data);
     case 'gerrit-file':
       return formatGerritFilePlain(data);
+    case 'gerrit-bots':
+      return formatGerritBotsPlain(data);
     case 'owners':
       return formatOwnersPlain(data);
     case 'commits':
@@ -712,4 +716,112 @@ function formatIssueSearchPlain(data: any): string {
   }
   
   return output;
+}
+
+function formatGerritBotsTable(data: any): string {
+  if (data.message) {
+    return data.message;
+  }
+
+  const rows = data.bots.map((bot: any) => [
+    bot.name,
+    getStatusIcon(bot.status) + ' ' + bot.status,
+    bot.summary || '',
+    bot.buildUrl || bot.luciUrl || '',
+  ]);
+
+  return table([
+    ['Bot Name', 'Status', 'Summary', 'URL'],
+    ...rows
+  ], {
+    border: {
+      topBody: '─',
+      topJoin: '┬',
+      topLeft: '┌',
+      topRight: '┐',
+      bottomBody: '─',
+      bottomJoin: '┴',
+      bottomLeft: '└',
+      bottomRight: '┘',
+      bodyLeft: '│',
+      bodyRight: '│',
+      bodyJoin: '│',
+      joinBody: '─',
+      joinLeft: '├',
+      joinRight: '┤',
+      joinJoin: '┼'
+    },
+    header: {
+      alignment: 'center',
+      content: `Try-Bot Status for CL ${data.clId} (Patchset ${data.patchset})\n` +
+               `📊 Total: ${data.totalBots} | ✅ Passed: ${data.passedBots} | ❌ Failed: ${data.failedBots} | 🔄 Running: ${data.runningBots}`
+    }
+  });
+}
+
+function formatGerritBotsPlain(data: any): string {
+  if (data.message) {
+    return data.message;
+  }
+
+  let output = chalk.bold(`Try-Bot Status for CL ${data.clId}\n`);
+  output += chalk.gray('─'.repeat(50)) + '\n';
+  output += chalk.cyan(`Patchset: ${data.patchset}\n`);
+  output += chalk.cyan(`LUCI Run: ${data.runId || 'N/A'}\n\n`);
+  
+  output += chalk.bold('📊 Summary:\n');
+  output += `  Total: ${data.totalBots}\n`;
+  output += `  ✅ Passed: ${data.passedBots}\n`;
+  output += `  ❌ Failed: ${data.failedBots}\n`;
+  output += `  🔄 Running: ${data.runningBots}\n`;
+  if (data.canceledBots > 0) {
+    output += `  ⏹️  Canceled: ${data.canceledBots}\n`;
+  }
+  output += '\n';
+
+  if (data.bots.length === 0) {
+    output += chalk.yellow('No bot results to display\n');
+    return output;
+  }
+
+  output += chalk.bold('🤖 Bots:\n');
+  data.bots.forEach((bot: any, index: number) => {
+    const statusIcon = getStatusIcon(bot.status);
+    output += `${statusIcon} ${chalk.bold(bot.name)} - ${bot.status}\n`;
+    
+    if (bot.summary) {
+      output += chalk.gray(`   ${bot.summary}\n`);
+    }
+    
+    if (bot.failureStep) {
+      output += chalk.red(`   Failed step: ${bot.failureStep}\n`);
+    }
+    
+    if (bot.buildUrl) {
+      output += chalk.blue(`   🔗 Build: ${bot.buildUrl}\n`);
+    } else if (bot.luciUrl) {
+      output += chalk.blue(`   🔗 LUCI: ${bot.luciUrl}\n`);
+    }
+    
+    if (index < data.bots.length - 1) {
+      output += '\n';
+    }
+  });
+  
+  if (data.luciUrl) {
+    output += '\n' + chalk.blue(`🌐 Full LUCI report: ${data.luciUrl}\n`);
+  }
+  
+  return output;
+}
+
+function getStatusIcon(status: string): string {
+  switch (status.toUpperCase()) {
+    case 'PASSED': return '✅';
+    case 'FAILED': return '❌';
+    case 'RUNNING': return '🔄';
+    case 'CANCELED': return '⏹️';
+    case 'UNKNOWN': return '❓';
+    default: return '⚪';
+  }
 }
