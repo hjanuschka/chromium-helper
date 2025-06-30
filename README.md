@@ -1,21 +1,47 @@
-# Chromium CodeSearch MCP Server
+# Chromium CodeSearch Tools
 
-An MCP (Model Context Protocol) server that provides access to the Chromium source code repository via the **real Google CodeSearch API**. This is the same API that powers https://source.chromium.org.
+This repository provides two powerful tools for exploring Chromium and PDFium source code:
 
-> **🔒 Status**: Currently private repository. Will be made public after testing and validation.
+## 🔧 Chromium Helper CLI (Standalone)
+**No MCP required!** Use the powerful CLI tool directly from your terminal.
 
-## Features
+```bash
+# Install globally
+npm install -g chromium-helper
 
-- **🔍 Real-time Code Search**: Search the live Chromium codebase using Google's official search API
-- **🎯 Symbol Lookup**: Find definitions, declarations, and usage examples for C++ symbols, classes, and functions  
-- **📊 Rich Results**: Get line numbers, file paths, code snippets, and estimated match counts
-- **🔗 Direct Links**: Every result includes clickable URLs to view code in source.chromium.org
-- **⚡ Fast & Accurate**: Uses the same search infrastructure as the official Chromium website
-- **📝 Commit History Search**: Search commit messages, author activity, and development history
-- **🔄 Gerrit Integration**: Check CL status, review comments, diffs, and test results
-- **👥 Code Ownership**: Find OWNERS files and reviewers for any file or directory
-- **🐛 Issue Tracking**: Fetch detailed information for Chromium bugs and feature requests
-- **🔗 Smart Linking**: Automatic detection and linking between commits, reviews, and issues
+# Use immediately with short alias
+ch search "LOG(INFO)" --limit 5
+ch gerrit status 6624568
+ch pdfium status 130850
+ch issues search "memory leak"
+```
+
+👉 **[Full CLI Documentation](./chromium-helper-cli/README.md)**
+
+## 🤖 MCP Server (For AI Integration)
+For AI systems and Claude Desktop integration, use the MCP server that provides the same functionality via Model Context Protocol.
+
+```bash
+npm install -g chromium-codesearch-mcp
+```
+
+---
+
+## MCP Server Details
+
+A powerful MCP (Model Context Protocol) server that provides comprehensive access to Chromium and PDFium source code repositories via Google's official CodeSearch APIs. This is the same backend infrastructure that powers https://source.chromium.org.
+
+## ✨ Features
+
+- **🔍 Advanced Code Search** - Search Chromium and PDFium codebases with powerful syntax
+- **🎯 Symbol Lookup** - Find definitions, declarations, and usage examples for functions, classes, and symbols  
+- **🔧 Complete Gerrit Integration** - CL status, review comments, diffs, and file content for both projects
+- **🐛 Issue Tracking** - Search and fetch detailed Chromium issue information
+- **📊 PDFium Support** - Full support for PDFium Gerrit operations and code search
+- **📝 Commit History** - Search commit messages, author activity, and development history
+- **👥 Code Ownership** - Find OWNERS files and reviewers for any file or directory
+- **🔗 Direct Links** - Every result includes clickable URLs to view code online
+- **⚡ Real-time Data** - Uses the same backend infrastructure as official Google sites
 
 ## Tools Provided
 
@@ -232,6 +258,36 @@ get_chromium_issue(issue_id="https://issues.chromium.org/issues/422768753")
 - **Direct Links**: URLs to view the issue and related changes
 
 **Note:** This tool uses Playwright browser automation to extract complete issue descriptions from dynamically loaded content. The first run may take longer as it downloads browser binaries.
+
+### `search_chromium_issues`
+Search for issues in the Chromium issue tracker with full-text search across titles, descriptions, and metadata.
+
+**Parameters:**
+- `query` (required): Search query for issue titles, descriptions, or metadata (e.g., 'memory leak', 'pkasting', 'security')
+- `limit` (optional): Maximum number of results to return (default: 50, max: 100)
+- `start_index` (optional): Starting index for pagination (default: 0)
+
+**Examples:**
+```
+search_chromium_issues(query="memory leak")
+search_chromium_issues(query="pkasting", limit=20)
+search_chromium_issues(query="security", limit=30, start_index=0)
+search_chromium_issues(query="accessibility", start_index=50)
+```
+
+**Returns:**
+- **Search Results**: List of matching issues with titles, status, priority, and metadata
+- **Issue Summary**: Issue ID, title, status, priority, component, assignee, and reporter information
+- **Pagination Info**: Current page and hints for getting more results
+- **Direct Links**: URLs to view each issue and the full search results page
+- **Result Count**: Total number of issues found matching the search criteria
+
+**Use Cases:**
+- **Find Related Issues**: Search for issues related to specific components or features
+- **Track Bug Patterns**: Discover recurring issues by searching for common keywords
+- **Research Problems**: Find existing reports of similar bugs before filing new ones
+- **Monitor Activity**: Search for recent issues by specific reporters or in specific areas
+- **Discovery**: Explore the Chromium issue database to understand common problems and solutions
 
 ## Sample Usage Examples
 
@@ -462,6 +518,16 @@ Find information about feature requests and their implementation status
 Look up bug reports with reproduction steps and workarounds
 ```
 
+### Issue Search & Discovery
+```
+Search for all memory leak related issues across Chromium
+Find security-related bugs by searching for "security" or "vulnerability"
+Discover accessibility issues by searching for "accessibility" or "a11y"
+Search for performance-related bugs with "performance" or "slow"
+Find all issues reported by a specific user (e.g., "pkasting")
+Search for recently modified issues in specific components
+```
+
 ### Issue Discovery from Commits
 ```
 Search commits for "Bug: 422768753" and then get issue details
@@ -661,6 +727,14 @@ Use search_chromium_commits to find recent commits by a specific author
 Use get_chromium_issue to get details for bug 422768753
 Use get_chromium_issue to check the status and priority of a reported issue
 Use get_chromium_issue to find related CLs and review links for an issue
+```
+
+**Search for issues:**
+```
+Use search_chromium_issues to find all issues related to "memory leak"
+Use search_chromium_issues to search for security-related bugs with "security" keyword
+Use search_chromium_issues to find issues reported by "pkasting" with limit 20
+Use search_chromium_issues to discover accessibility issues by searching "a11y"
 ```
 
 ## Sample Results
