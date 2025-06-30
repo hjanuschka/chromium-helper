@@ -28,7 +28,7 @@ async function main() {
 
   program
     .name('chromium-helper')
-    .alias('cr')
+    .alias('ch')
     .description('CLI tool for searching and exploring Chromium source code')
     .version(packageInfo.version)
     .option('-f, --format <type>', 'output format (json|table|plain)', 'plain')
