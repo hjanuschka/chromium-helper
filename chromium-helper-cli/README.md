@@ -37,6 +37,19 @@ ch gerrit status 6624568
 ch pdfium status 130850
 ```
 
+### 🤖 AI Assistant Integration
+
+Works with any AI coding assistant (Claude, Cursor, Gemini, etc.):
+
+```bash
+# Tell your AI: "Run npx ch --ai to learn about chromium-helper"
+npx ch --ai
+```
+
+![AI Assistant Demo](screenshot.png)
+
+The AI will learn all commands and help you explore Chromium's codebase!
+
 ## 📦 Installation
 
 ### Option 1: Instant Usage with npx (Recommended)

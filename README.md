@@ -75,6 +75,17 @@ The AI will:
 3. Analyze results and provide insights
 4. All without cluttering your AI's context window!
 
+#### Real Example in Action:
+
+![AI Assistant using chromium-helper](./chromium-helper-cli/screenshot.png)
+
+In this example, the AI assistant:
+- First runs `npx ch --ai` to learn the tool
+- Checks CL 6624568 for test status (✅ all 30/30 bots passed)
+- Retrieves review comments with proper formatting
+- Provides a comprehensive summary of the CL status and reviewer feedback
+- All in a clean, organized output!
+
 ---
 
 ## 🚀 Quick Start
@@ -104,9 +115,11 @@ Then help me [your task here]
 
 Example tasks:
 - "Find all uses of base::RefCounted in the codebase"
-- "Check if CL 6624568 has passing tests"
+- "Check if CL 6624568 has passing tests and show me the review comments"
 - "Search for recent security fixes in the renderer"
 - "Find who owns the password manager code"
+- "Help me understand what PDFium CL 130850 does"
+- "Show me all failing bots for a specific CL"
 
 ### MCP Server - For AI Integration
 
