@@ -1,6 +1,6 @@
 {
   "name": "chromium-helper",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "CLI tool for searching and exploring Chromium source code via Google's official APIs",
   "type": "module",
   "main": "dist/index.js",

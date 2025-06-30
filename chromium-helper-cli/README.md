@@ -22,40 +22,41 @@ A powerful command-line tool for searching and exploring Chromium and PDFium sou
 ## 🚀 Quick Start
 
 ```bash
-# Install globally
+# Option 1: Use instantly (no installation needed!)
+npx chromium-helper search "LOG(INFO)" --limit 5
+npx chromium-helper gerrit status 6624568
+npx chromium-helper issues search "memory leak" --limit 10
+
+# Option 2: Install globally for short 'ch' alias
 npm install -g chromium-helper
 
-# Or run with npx (no installation needed)
-npx chromium-helper search "LOG(INFO)" --limit 5
-
-# Use the short alias 'ch'
+# Then use with short commands
 ch search "memory leak" --case-sensitive --format json
-
-# Gerrit operations (Chromium & PDFium)
 ch gerrit status 6624568
 ch pdfium status 130850
-
-# Issue tracking
-ch issues search "memory leak" --limit 10
 ```
 
 ## 📦 Installation
 
-### Global Installation (Recommended)
-```bash
-npm install -g chromium-helper
-# Now available as 'ch' and 'ch'
-```
-
-### One-time Usage with npx
+### Option 1: Instant Usage with npx (Recommended)
+**No installation required!** Just run any command:
 ```bash
 npx chromium-helper search "Browser::Create" --format json
+npx chromium-helper gerrit status 6624568
+npx chromium-helper issues search "security" --limit 20
 ```
 
-### From Source
+### Option 2: Global Installation 
+For faster startup and short 'ch' alias:
 ```bash
-git clone https://github.com/hjanuschka/chromium-codesearch-mcp.git
-cd chromium-codesearch-mcp/ch-cli
+npm install -g chromium-helper
+# Now available as 'chromium-helper' and 'ch'
+```
+
+### Option 3: From Source
+```bash
+git clone https://github.com/hjanuschka/chromium-helper.git
+cd chromium-helper/chromium-helper-cli
 npm install && npm run build
 npm link  # Optional: Make globally available
 ```
