@@ -12,7 +12,7 @@ A comprehensive CLI tool for searching and exploring the Chromium source code. A
 ## Commands Overview
 
 ### 1. search - Search Chromium source code
-Usage: chromium-helper search <query> [options]
+Usage: ch search <query> [options]
 Aliases: s
 
 Options:
@@ -24,9 +24,9 @@ Options:
   --limit <number>                  Max results (default: 20)
 
 Examples:
-  chromium-helper search "LOG(INFO)" --format json --limit 5
-  chromium-helper search "WebContents" --type class --file-pattern "*.h"
-  chromium-helper search "memory leak" --language cpp --exclude-comments
+  ch search "LOG(INFO)" --format json --limit 5
+  ch search "WebContents" --type class --file-pattern "*.h"
+  ch search "memory leak" --language cpp --exclude-comments
 
 JSON Output Format:
 [
@@ -39,15 +39,15 @@ JSON Output Format:
 ]
 
 ### 2. symbol - Find symbol definitions and usage
-Usage: chromium-helper symbol <symbol> [options]
+Usage: ch symbol <symbol> [options]
 Aliases: sym
 
 Options:
   -f, --file <path>                 File context for symbol resolution
 
 Examples:
-  chromium-helper symbol "Browser" --format json
-  chromium-helper symbol "CreateWindow" --file "chrome/browser/ui/browser.cc"
+  ch symbol "Browser" --format json
+  ch symbol "CreateWindow" --file "chrome/browser/ui/browser.cc"
 
 JSON Output Format:
 {
@@ -60,7 +60,7 @@ JSON Output Format:
 }
 
 ### 3. file - Get file content from Chromium source
-Usage: chromium-helper file <path> [options]
+Usage: ch file <path> [options]
 Aliases: f
 
 Options:
@@ -68,8 +68,8 @@ Options:
   -e, --end <line>                  Ending line number
 
 Examples:
-  chromium-helper file "base/logging.h" --format json
-  chromium-helper file "chrome/browser/ui/browser.h" --start 100 --end 200
+  ch file "base/logging.h" --format json
+  ch file "chrome/browser/ui/browser.h" --start 100 --end 200
 
 JSON Output Format:
 {
@@ -83,11 +83,11 @@ JSON Output Format:
 }
 
 ### 4. owners - Find OWNERS files for a file path
-Usage: chromium-helper owners <path>
+Usage: ch owners <path>
 Aliases: own
 
 Examples:
-  chromium-helper owners "chrome/browser/ui/browser.cc" --format json
+  ch owners "chrome/browser/ui/browser.cc" --format json
 
 JSON Output Format:
 {
@@ -102,7 +102,7 @@ JSON Output Format:
 }
 
 ### 5. commits - Search commit history
-Usage: chromium-helper commits <query> [options]
+Usage: ch commits <query> [options]
 Aliases: cm
 
 Options:
@@ -112,9 +112,9 @@ Options:
   --limit <number>                  Max results (default: 20)
 
 Examples:
-  chromium-helper commits "password manager" --format json --limit 10
-  chromium-helper commits "security fix" --author "chrome-security"
-  chromium-helper commits "memory leak" --since "2023-01-01" --until "2023-12-31"
+  ch commits "password manager" --format json --limit 10
+  ch commits "security fix" --author "chrome-security"
+  ch commits "memory leak" --since "2023-01-01" --until "2023-12-31"
 
 JSON Output Format:
 {
@@ -132,7 +132,7 @@ JSON Output Format:
 }
 
 ### 6. gerrit - Gerrit code review operations
-Usage: chromium-helper gerrit <command> [options]
+Usage: ch gerrit <command> [options]
 Aliases: gr
 
 Subcommands:
@@ -150,13 +150,13 @@ Options for diff:
   -f, --file <path>               Specific file path to get diff for
 
 Examples:
-  chromium-helper gerrit status 6624568 --format json
-  chromium-helper gerrit comments 6624568 --format json
-  chromium-helper gerrit diff 6624568 --file "base/logging.cc"
-  chromium-helper gerrit file 6624568 "base/logging.cc" --patchset 3
+  ch gerrit status 6624568 --format json
+  ch gerrit comments 6624568 --format json
+  ch gerrit diff 6624568 --file "base/logging.cc"
+  ch gerrit file 6624568 "base/logging.cc" --patchset 3
 
 ### 7. pdfium - PDFium Gerrit operations
-Usage: chromium-helper pdfium <command> [options]
+Usage: ch pdfium <command> [options]
 Aliases: pdf
 
 Subcommands:
@@ -174,13 +174,13 @@ Options for diff:
   -f, --file <path>               Specific file path to get diff for
 
 Examples:
-  chromium-helper pdfium status 130850
-  chromium-helper pdfium comments 130850 --format json
-  chromium-helper pdfium diff 130850 --file "fpdfsdk/fpdf_view.cpp"
-  chromium-helper pdfium file 130850 "fpdfsdk/fpdf_view.cpp" --patchset 9
+  ch pdfium status 130850
+  ch pdfium comments 130850 --format json
+  ch pdfium diff 130850 --file "fpdfsdk/fpdf_view.cpp"
+  ch pdfium file 130850 "fpdfsdk/fpdf_view.cpp" --patchset 9
 
 ### 8. issues - Chromium issue operations
-Usage: chromium-helper issues <command> [options]
+Usage: ch issues <command> [options]
 Aliases: bugs
 
 Subcommands:
@@ -192,9 +192,9 @@ Options for search:
   --start <number>                  Starting index for pagination (default: 0)
 
 Examples:
-  chromium-helper issues get 422768753 --format json
-  chromium-helper issues search "memory leak" --format json --limit 10
-  chromium-helper issues search "webrtc" --start 50 --limit 25
+  ch issues get 422768753 --format json
+  ch issues search "memory leak" --format json --limit 10
+  ch issues search "webrtc" --start 50 --limit 25
 
 JSON Output Format for get:
 {
@@ -242,42 +242,42 @@ JSON Output Format for search:
 }
 
 ### 8. issue - Get Chromium issue details (Legacy)
-Usage: chromium-helper issue <id>
+Usage: ch issue <id>
 Aliases: bug
 
-Note: This is a legacy command. Use 'chromium-helper issues get <id>' instead.
+Note: This is a legacy command. Use 'ch issues get <id>' instead.
 
 ## AI Usage Patterns
 
 ### Code Analysis Workflow
-1. Search for relevant code: \`chromium-helper search "feature name" --format json\`
-2. Examine specific files: \`chromium-helper file "path/to/file.cc" --format json\`
-3. Find symbol definitions: \`chromium-helper symbol "ClassName" --format json\`
-4. Check ownership: \`chromium-helper owners "path/to/file.cc" --format json\`
+1. Search for relevant code: \`ch search "feature name" --format json\`
+2. Examine specific files: \`ch file "path/to/file.cc" --format json\`
+3. Find symbol definitions: \`ch symbol "ClassName" --format json\`
+4. Check ownership: \`ch owners "path/to/file.cc" --format json\`
 
 ### Bug Investigation Workflow
-1. Search for related issues: \`chromium-helper issues search "memory leak" --format json\`
-2. Get specific issue details: \`chromium-helper issues get 12345 --format json\`
-3. Review related CLs: \`chromium-helper gerrit status 6624568 --format json\`
-4. Search for similar code patterns: \`chromium-helper search "error message" --format json\`
-5. Check commit history: \`chromium-helper commits "bug keyword" --format json\`
+1. Search for related issues: \`ch issues search "memory leak" --format json\`
+2. Get specific issue details: \`ch issues get 12345 --format json\`
+3. Review related CLs: \`ch gerrit status 6624568 --format json\`
+4. Search for similar code patterns: \`ch search "error message" --format json\`
+5. Check commit history: \`ch commits "bug keyword" --format json\`
 
 ### Shell Integration Examples
 \`\`\`bash
 # Find all TODOs in browser code
-chromium-helper search "TODO" --type comment --file-pattern "chrome/browser/*" --format json | jq '.[] | .file'
+ch search "TODO" --type comment --file-pattern "chrome/browser/*" --format json | jq '.[] | .file'
 
 # Get security-related symbols
-chromium-helper search "crypto" --language cpp --format json | jq '.[] | select(.file | contains("security"))'
+ch search "crypto" --language cpp --format json | jq '.[] | select(.file | contains("security"))'
 
 # Find all Browser class usage
-chromium-helper symbol "Browser" --format json | jq '.usageResults[].url'
+ch symbol "Browser" --format json | jq '.usageResults[].url'
 
 # Search for high priority memory issues
-chromium-helper issues search "memory" --format json | jq '.issues[] | select(.priority == "P1" or .priority == "P2")'
+ch issues search "memory" --format json | jq '.issues[] | select(.priority == "P1" or .priority == "P2")'
 
 # Get all issue URLs for a specific search
-chromium-helper issues search "webrtc" --format json | jq '.issues[].browserUrl'
+ch issues search "webrtc" --format json | jq '.issues[].browserUrl'
 \`\`\`
 
 ### Error Handling
