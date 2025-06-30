@@ -155,15 +155,48 @@ Examples:
   chromium-helper gerrit diff 6624568 --file "base/logging.cc"
   chromium-helper gerrit file 6624568 "base/logging.cc" --patchset 3
 
-### 7. issue - Get Chromium issue details
-Usage: chromium-helper issue <id>
-Aliases: bug
+### 7. pdfium - PDFium Gerrit operations
+Usage: chromium-helper pdfium <command> [options]
+Aliases: pdf
+
+Subcommands:
+  status <cl>                      Get PDFium CL status and test results
+  comments <cl> [options]          Get PDFium CL review comments
+  diff <cl> [options]              Get PDFium CL diff/changes
+  file <cl> <path> [options]       Get file content from PDFium CL patchset
+
+Options for comments:
+  -p, --patchset <number>          Specific patchset number
+  --no-resolved                    Exclude resolved comments
+
+Options for diff:
+  -p, --patchset <number>          Specific patchset number
+  -f, --file <path>               Specific file path to get diff for
 
 Examples:
-  chromium-helper issue 422768753 --format json
-  chromium-helper issue "https://issues.chromium.org/issues/422768753"
+  chromium-helper pdfium status 130850
+  chromium-helper pdfium comments 130850 --format json
+  chromium-helper pdfium diff 130850 --file "fpdfsdk/fpdf_view.cpp"
+  chromium-helper pdfium file 130850 "fpdfsdk/fpdf_view.cpp" --patchset 9
 
-JSON Output Format:
+### 8. issues - Chromium issue operations
+Usage: chromium-helper issues <command> [options]
+Aliases: bugs
+
+Subcommands:
+  get <id>                          Get specific issue details
+  search <query> [options]          Search for issues
+
+Options for search:
+  --limit <number>                  Max results (default: 50)
+  --start <number>                  Starting index for pagination (default: 0)
+
+Examples:
+  chromium-helper issues get 422768753 --format json
+  chromium-helper issues search "memory leak" --format json --limit 10
+  chromium-helper issues search "webrtc" --start 50 --limit 25
+
+JSON Output Format for get:
 {
   "issueId": "422768753",
   "browserUrl": "https://issues.chromium.org/issues/422768753",
@@ -188,6 +221,32 @@ JSON Output Format:
   "extractionMethod": "direct-api"
 }
 
+JSON Output Format for search:
+{
+  "query": "memory leak",
+  "total": 15,
+  "issues": [
+    {
+      "issueId": "422768753",
+      "title": "Memory leak in WebRTC",
+      "status": "ASSIGNED",
+      "priority": "P2",
+      "reporter": "reporter@chromium.org",
+      "assignee": "assignee@chromium.org",
+      "created": "2023-12-30T10:00:00.000Z",
+      "modified": "2024-01-15T14:30:00.000Z",
+      "browserUrl": "https://issues.chromium.org/issues/422768753"
+    }
+  ],
+  "searchUrl": "https://issues.chromium.org/issues?q=memory%20leak"
+}
+
+### 8. issue - Get Chromium issue details (Legacy)
+Usage: chromium-helper issue <id>
+Aliases: bug
+
+Note: This is a legacy command. Use 'chromium-helper issues get <id>' instead.
+
 ## AI Usage Patterns
 
 ### Code Analysis Workflow
@@ -197,10 +256,11 @@ JSON Output Format:
 4. Check ownership: \`chromium-helper owners "path/to/file.cc" --format json\`
 
 ### Bug Investigation Workflow
-1. Get issue details: \`chromium-helper issue 12345 --format json\`
-2. Review related CLs: \`chromium-helper gerrit status 6624568 --format json\`
-3. Search for similar issues: \`chromium-helper search "error message" --format json\`
-4. Check commit history: \`chromium-helper commits "bug keyword" --format json\`
+1. Search for related issues: \`chromium-helper issues search "memory leak" --format json\`
+2. Get specific issue details: \`chromium-helper issues get 12345 --format json\`
+3. Review related CLs: \`chromium-helper gerrit status 6624568 --format json\`
+4. Search for similar code patterns: \`chromium-helper search "error message" --format json\`
+5. Check commit history: \`chromium-helper commits "bug keyword" --format json\`
 
 ### Shell Integration Examples
 \`\`\`bash
@@ -212,6 +272,12 @@ chromium-helper search "crypto" --language cpp --format json | jq '.[] | select(
 
 # Find all Browser class usage
 chromium-helper symbol "Browser" --format json | jq '.usageResults[].url'
+
+# Search for high priority memory issues
+chromium-helper issues search "memory" --format json | jq '.issues[] | select(.priority == "P1" or .priority == "P2")'
+
+# Get all issue URLs for a specific search
+chromium-helper issues search "webrtc" --format json | jq '.issues[].browserUrl'
 \`\`\`
 
 ### Error Handling

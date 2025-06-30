@@ -1908,6 +1908,583 @@ export class ChromiumAPI {
     return content === "[empty comment from monorail migration]" || 
            content === "empty comment from monorail migration" ||
            content.includes("empty comment from monorail migration");
-}
+  }
+
+  // PDFium Gerrit operations
+  async getPdfiumGerritCLStatus(clNumber: string): Promise<any> {
+    try {
+      // Extract CL number from URL if needed
+      const clNum = this.extractCLNumber(clNumber);
+      const gerritUrl = `https://pdfium-review.googlesource.com/changes/${clNum}?o=CURRENT_REVISION&o=DETAILED_ACCOUNTS&o=SUBMIT_REQUIREMENTS&o=CURRENT_COMMIT`;
+      
+      const response = await fetch(gerritUrl);
+      if (!response.ok) {
+        throw new GerritAPIError(`Failed to fetch PDFium CL status: ${response.status}`, response.status);
+      }
+      
+      const text = await response.text();
+      // Remove XSSI protection prefix
+      const jsonText = text.replace(/^\)\]\}'\n/, '');
+      return JSON.parse(jsonText);
+      
+    } catch (error: any) {
+      throw new GerritAPIError(`PDFium Gerrit API error: ${error.message}`, undefined, error);
+    }
+  }
+
+  async getPdfiumGerritCLComments(params: GetGerritCLCommentsParams): Promise<any> {
+    try {
+      const clNum = this.extractCLNumber(params.clNumber);
+      const gerritUrl = `https://pdfium-review.googlesource.com/changes/${clNum}/comments`;
+      
+      const response = await fetch(gerritUrl);
+      if (!response.ok) {
+        throw new GerritAPIError(`Failed to fetch PDFium CL comments: ${response.status}`, response.status);
+      }
+      
+      const text = await response.text();
+      const jsonText = text.replace(/^\)\]\}'\n/, '');
+      return JSON.parse(jsonText);
+      
+    } catch (error: any) {
+      throw new GerritAPIError(`PDFium Gerrit comments API error: ${error.message}`, undefined, error);
+    }
+  }
+
+  async getPdfiumGerritCLDiff(params: GetGerritCLDiffParams): Promise<any> {
+    const clId = this.extractCLNumber(params.clNumber);
+    
+    try {
+      // First get CL details to know current patchset if not specified
+      const clDetailsUrl = `https://pdfium-review.googlesource.com/changes/?q=change:${clId}&o=CURRENT_REVISION`;
+      const clResponse = await fetch(clDetailsUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!clResponse.ok) {
+        throw new Error(`Failed to fetch PDFium CL details: ${clResponse.status}`);
+      }
+      
+      const responseText = await clResponse.text();
+      const jsonText = responseText.replace(/^\)\]\}'\n/, '');
+      const clData = JSON.parse(jsonText);
+      
+      if (!clData || clData.length === 0) {
+        throw new Error(`PDFium CL ${clId} not found`);
+      }
+      
+      const cl = clData[0];
+      const targetPatchset = params.patchset || cl.current_revision_number || 1;
+      const revision = cl.revisions[cl.current_revision];
+      
+      // Get the files list first to understand what changed
+      const filesUrl = `https://pdfium-review.googlesource.com/changes/${clId}/revisions/${targetPatchset}/files`;
+      const filesResponse = await fetch(filesUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!filesResponse.ok) {
+        throw new Error(`Failed to fetch PDFium files: ${filesResponse.status}`);
+      }
+      
+      const filesText = await filesResponse.text();
+      const filesJsonText = filesText.replace(/^\)\]\}'\n/, '');
+      const filesData = JSON.parse(filesJsonText);
+      
+      const changedFiles = Object.keys(filesData).filter(f => f !== '/COMMIT_MSG');
+      
+      const result: any = {
+        clId,
+        subject: cl.subject,
+        patchset: targetPatchset,
+        author: cl.owner.name,
+        changedFiles,
+        filesData,
+        revision,
+        isPdfium: true
+      };
+      
+      if (params.filePath) {
+        // Get diff for specific file
+        if (!filesData[params.filePath]) {
+          result.error = `File ${params.filePath} not found in PDFium patchset ${targetPatchset}`;
+          return result;
+        }
+        
+        const diffUrl = `https://pdfium-review.googlesource.com/changes/${clId}/revisions/${targetPatchset}/files/${encodeURIComponent(params.filePath)}/diff?base=${targetPatchset-1}&context=ALL&intraline`;
+        const diffResponse = await fetch(diffUrl, {
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
+        
+        if (diffResponse.ok) {
+          const diffText = await diffResponse.text();
+          const diffJsonText = diffText.replace(/^\)\]\}'\n/, '');
+          result.diffData = JSON.parse(diffJsonText);
+        }
+      }
+      
+      return result;
+      
+    } catch (error: any) {
+      throw new GerritAPIError(`Failed to get PDFium CL diff: ${error.message}`, undefined, error);
+    }
+  }
+
+  async getPdfiumGerritPatchsetFile(params: GetGerritPatchsetFileParams): Promise<any> {
+    const clId = this.extractCLNumber(params.clNumber);
+    
+    try {
+      // First get CL details to know current patchset if not specified
+      const clDetailsUrl = `https://pdfium-review.googlesource.com/changes/?q=change:${clId}&o=CURRENT_REVISION`;
+      const clResponse = await fetch(clDetailsUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!clResponse.ok) {
+        throw new Error(`Failed to fetch PDFium CL details: ${clResponse.status}`);
+      }
+      
+      const responseText = await clResponse.text();
+      const jsonText = responseText.replace(/^\)\]\}'\n/, '');
+      const clData = JSON.parse(jsonText);
+      
+      if (!clData || clData.length === 0) {
+        throw new Error(`PDFium CL ${clId} not found`);
+      }
+      
+      const cl = clData[0];
+      const targetPatchset = params.patchset || cl.current_revision_number || 1;
+      
+      // Get the file content from the patchset
+      const fileUrl = `https://pdfium-review.googlesource.com/changes/${clId}/revisions/${targetPatchset}/files/${encodeURIComponent(params.filePath)}/content`;
+      const fileResponse = await fetch(fileUrl, {
+        headers: {
+          'Accept': 'text/plain',
+        },
+      });
+      
+      if (!fileResponse.ok) {
+        if (fileResponse.status === 404) {
+          throw new Error(`File ${params.filePath} not found in PDFium patchset ${targetPatchset}`);
+        }
+        throw new Error(`Failed to fetch PDFium file content: ${fileResponse.status}`);
+      }
+      
+      // Gerrit returns base64 encoded content
+      const base64Content = await fileResponse.text();
+      const content = Buffer.from(base64Content, 'base64').toString('utf-8');
+      
+      return {
+        clId,
+        subject: cl.subject,
+        patchset: targetPatchset,
+        author: cl.owner.name,
+        filePath: params.filePath,
+        content,
+        lines: content.split('\n').length,
+        isPdfium: true
+      };
+      
+    } catch (error: any) {
+      throw new GerritAPIError(`Failed to get PDFium file content: ${error.message}`, undefined, error);
+    }
+  }
+
+  async searchIssues(query: string, options: { limit?: number; startIndex?: number } = {}): Promise<any> {
+    const { limit = 50, startIndex = 0 } = options;
+    
+    this.debug(`[DEBUG] Searching issues with query: "${query}", limit: ${limit}, startIndex: ${startIndex}`);
+    
+    try {
+      const baseUrl = 'https://issues.chromium.org';
+      const endpoint = '/action/issues/list';
+      
+      // Based on the curl command structure: [null,null,null,null,null,["157"],["pkasting","modified_time desc",50,"start_index:0"]]
+      const searchParams = [query, "modified_time desc", limit];
+      if (startIndex > 0) {
+        searchParams.push(`start_index:${startIndex}`);
+      }
+      
+      const payload = [
+        null,
+        null,
+        null,
+        null,
+        null,
+        ["157"], // Track ID for Chromium
+        searchParams
+      ];
+      
+      const response = await fetch(`${baseUrl}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Referer': 'https://issues.chromium.org/',
+          'Origin': 'https://issues.chromium.org',
+          'Sec-Fetch-Dest': 'empty',
+          'Sec-Fetch-Mode': 'cors',
+          'Sec-Fetch-Site': 'same-origin',
+          'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"macOS"'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const text = await response.text();
+      this.debug(`[DEBUG] Raw response length: ${text.length} characters`);
+      
+      // Strip the XSSI protection prefix ")]}'\n" if present
+      let cleanText = text;
+      if (text.startsWith(")]}'\n")) {
+        cleanText = text.substring(5);
+        this.debug(`[DEBUG] Stripped XSSI protection prefix`);
+      } else if (text.startsWith(")]}'")) {
+        cleanText = text.substring(4);
+        this.debug(`[DEBUG] Stripped alternative XSSI protection prefix`);
+      }
+      
+      // Parse the response (should be JSON)
+      const data = JSON.parse(cleanText);
+      this.debug(`[DEBUG] Parsed response structure:`, typeof data, Array.isArray(data));
+      this.debug(`[DEBUG] Response top-level structure:`, data.length ? `Array of ${data.length} items` : 'Not an array');
+      
+      // Extract issues from the response
+      const issues = this.parseIssueSearchResults(data, query);
+      
+      return {
+        query,
+        total: issues.length,
+        issues,
+        searchUrl: `${baseUrl}/issues?q=${encodeURIComponent(query)}`
+      };
+      
+    } catch (error) {
+      this.debug(`[ERROR] Issue search failed:`, error);
+      throw new ChromiumSearchError(
+        `Failed to search issues: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error : undefined
+      );
+    }
+  }
+
+  private parseIssueSearchResults(data: any, query: string): any[] {
+    this.debug(`[DEBUG] Parsing issue search results for query: "${query}"`);
+    
+    const issues: any[] = [];
+    
+    // The response structure is: [{ 0: "b.IssueSearchResponse", ..., 6: [[[issueData, ...]], ...] }]
+    try {
+      if (data && data[0] && data[0][6] && Array.isArray(data[0][6])) {
+        const issueContainer = data[0][6];
+        this.debug(`[DEBUG] Found issue container with ${issueContainer.length} items`);
+        
+        for (let i = 0; i < issueContainer.length; i++) {
+          const item = issueContainer[i];
+          
+          if (Array.isArray(item)) {
+            // Check if this is a direct issue array
+            if (item.length > 5 && typeof item[1] === 'number' && item[1] > 1000000) {
+              const issue = this.parseIssueFromProtobufArray(item);
+              if (issue) {
+                issues.push(issue);
+                this.debug(`[DEBUG] Parsed issue: ${issue.issueId}`);
+              }
+            }
+            // Check if this contains nested issue arrays - look through all positions
+            else if (item.length > 0) {
+              for (let j = 0; j < item.length; j++) {
+                if (Array.isArray(item[j]) && item[j].length > 5) {
+                  // Check if this looks like an issue array (has issue ID at position 1)
+                  if (typeof item[j][1] === 'number' && item[j][1] > 1000000) {
+                    const issue = this.parseIssueFromProtobufArray(item[j]);
+                    if (issue) {
+                      issues.push(issue);
+                      this.debug(`[DEBUG] Parsed issue: ${issue.issueId}`);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } else {
+        this.debug(`[DEBUG] Expected structure not found in response`);
+      }
+    } catch (error) {
+      this.debug(`[DEBUG] Error parsing issue search results:`, error);
+    }
+    
+    this.debug(`[DEBUG] Found ${issues.length} issues in search results`);
+    
+    return issues.map(issue => this.normalizeIssueSearchResult(issue));
+  }
+
+  private parseIssueFromProtobufArray(arr: any[]): any | null {
+    try {
+      // Based on the structure observed:
+      // [null, issueId, [nested_data], timestamp1, timestamp2, null, null, null, status_num, [priority], ...]
+      
+      const issue: any = {};
+      
+      // Issue ID is at position 1 (this appears to be the correct main issue ID)
+      if (arr[1] && typeof arr[1] === 'number') {
+        issue.issueId = arr[1].toString();
+      }
+      
+      // Nested issue data is at position 2
+      if (arr[2] && Array.isArray(arr[2]) && arr[2].length > 5) {
+        const nestedData = arr[2];
+        
+        // Don't override the main issue ID with the nested one
+        // The nested ID might be different (internal ID vs public ID)
+        
+        // Title at nestedData[5]
+        if (nestedData[5] && typeof nestedData[5] === 'string') {
+          issue.title = nestedData[5];
+        }
+        
+        // Reporter at nestedData[6] - format: [null, "email", 1]
+        if (nestedData[6] && Array.isArray(nestedData[6]) && nestedData[6][1]) {
+          issue.reporter = nestedData[6][1];
+        }
+        
+        // Assignee at nestedData[7] - format: [null, "email", 1]
+        if (nestedData[7] && Array.isArray(nestedData[7]) && nestedData[7][1]) {
+          issue.assignee = nestedData[7][1];
+        }
+        
+        // Status (numeric) might be at position 1, 2, 3, or 4
+        if (typeof nestedData[1] === 'number') {
+          issue.statusNum = nestedData[1];
+          issue.status = this.getIssueStatusFromNumber(nestedData[1]);
+        }
+        
+        // Priority (numeric) might be at position 2
+        if (typeof nestedData[2] === 'number') {
+          issue.priorityNum = nestedData[2];
+          issue.priority = `P${nestedData[2]}`;
+        }
+        
+        // Type (numeric) might be at position 3
+        if (typeof nestedData[3] === 'number') {
+          issue.typeNum = nestedData[3];
+          issue.type = this.getIssueTypeFromNumber(nestedData[3]);
+        }
+        
+        // Severity (numeric) might be at position 4
+        if (typeof nestedData[4] === 'number') {
+          issue.severityNum = nestedData[4];
+          issue.severity = `S${nestedData[4]}`;
+        }
+      }
+      
+      // Timestamps
+      if (arr[3] && typeof arr[3] === 'number') {
+        issue.created = new Date(arr[3] * 1000).toISOString();
+      }
+      
+      if (arr[4] && Array.isArray(arr[4]) && arr[4][0]) {
+        issue.modified = new Date(arr[4][0] * 1000).toISOString();
+      }
+      
+      // Status and priority might also be in later positions
+      if (arr[8] && typeof arr[8] === 'number') {
+        issue.statusNum = arr[8];
+        issue.status = this.getIssueStatusFromNumber(arr[8]);
+      }
+      
+      if (arr[9] && Array.isArray(arr[9]) && arr[9][0]) {
+        issue.priorityNum = arr[9][0];
+        issue.priority = `P${arr[9][0]}`;
+      }
+      
+      if (issue.issueId) {
+        issue.browserUrl = `https://issues.chromium.org/issues/${issue.issueId}`;
+        return issue;
+      }
+      
+      return null;
+    } catch (error) {
+      this.debug(`[DEBUG] Error parsing single issue:`, error);
+      return null;
+    }
+  }
+
+  private getIssueStatusFromNumber(statusNum: number): string {
+    // Common status mappings (may need adjustment based on actual data)
+    const statusMap: { [key: number]: string } = {
+      1: 'NEW',
+      2: 'ASSIGNED', 
+      3: 'ACCEPTED',
+      4: 'FIXED',
+      5: 'VERIFIED',
+      6: 'CLOSED',
+      7: 'DUPLICATE',
+      8: 'WontFix',
+      9: 'Invalid'
+    };
+    
+    return statusMap[statusNum] || `Status${statusNum}`;
+  }
+
+  private getIssueTypeFromNumber(typeNum: number): string {
+    // Common type mappings (may need adjustment based on actual data)
+    const typeMap: { [key: number]: string } = {
+      1: 'Bug',
+      2: 'Feature',
+      3: 'Task',
+      4: 'Enhancement'
+    };
+    
+    return typeMap[typeNum] || `Type${typeNum}`;
+  }
+
+  private looksLikeIssueObject(obj: any): boolean {
+    // Check if object has properties that look like issue fields
+    if (typeof obj !== 'object' || obj === null) return false;
+    
+    const keys = Object.keys(obj);
+    const issueKeys = ['id', 'title', 'status', 'priority', 'type', 'reporter', 'assignee', 'created', 'modified'];
+    
+    return issueKeys.some(key => keys.includes(key)) || 
+           keys.some(key => key.toLowerCase().includes('issue'));
+  }
+
+  private looksLikeIssueData(arr: any[]): boolean {
+    // Check if array contains issue-like data structures
+    if (!Array.isArray(arr) || arr.length === 0) return false;
+    
+    // Look for nested arrays that might contain issue IDs (numeric strings)
+    return arr.some(item => {
+      if (Array.isArray(item)) {
+        return item.some(subItem => {
+          if (typeof subItem === 'string' && /^\d{9,}$/.test(subItem)) {
+            return true; // Looks like an issue ID
+          }
+          return false;
+        });
+      }
+      return false;
+    });
+  }
+
+  private extractIssuesFromArray(arr: any[]): any[] {
+    const issues: any[] = [];
+    
+    // Parse the nested array structure to extract issue information
+    for (const item of arr) {
+      if (Array.isArray(item)) {
+        const issueData = this.parseIssueFromNestedArray(item);
+        if (issueData) {
+          issues.push(issueData);
+        }
+      }
+    }
+    
+    return issues;
+  }
+
+  private parseIssueFromNestedArray(arr: any[]): any | null {
+    // Try to extract issue information from nested array structure
+    // The exact structure depends on the API response format
+    
+    let issueId: string | null = null;
+    let title: string | null = null;
+    let status: string | null = null;
+    let priority: string | null = null;
+    let reporter: string | null = null;
+    let assignee: string | null = null;
+    let created: string | null = null;
+    let modified: string | null = null;
+    
+    const traverse = (item: any) => {
+      if (Array.isArray(item)) {
+        item.forEach(traverse);
+      } else if (typeof item === 'string') {
+        // Look for issue ID pattern
+        if (/^\d{9,}$/.test(item) && !issueId) {
+          issueId = item;
+        }
+        // Look for email patterns
+        else if (item.includes('@') && item.includes('.')) {
+          if (!reporter) {
+            reporter = item;
+          } else if (!assignee && item !== reporter) {
+            assignee = item;
+          }
+        }
+        // Look for status/priority patterns
+        else if (/^(NEW|ASSIGNED|FIXED|VERIFIED|CLOSED|DUPLICATE|WontFix|Invalid)$/i.test(item)) {
+          status = item;
+        }
+        else if (/^P[0-4]$/.test(item)) {
+          priority = item;
+        }
+        // Look for title (longer text that doesn't match other patterns)
+        else if (item.length > 20 && item.length < 200 && !title && 
+                 !item.includes('http') && !item.includes('@')) {
+          title = item;
+        }
+        // Look for timestamps
+        else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(item)) {
+          if (!created) {
+            created = item;
+          } else if (!modified) {
+            modified = item;
+          }
+        }
+      }
+    };
+    
+    traverse(arr);
+    
+    if (issueId) {
+      return {
+        issueId,
+        title: title || `Issue ${issueId}`,
+        status: status || 'Unknown',
+        priority: priority || 'Unknown',
+        reporter,
+        assignee,
+        created,
+        modified,
+        browserUrl: `https://issues.chromium.org/issues/${issueId}`
+      };
+    }
+    
+    return null;
+  }
+
+  private normalizeIssueSearchResult(issue: any): any {
+    // Normalize the issue object to a consistent format
+    return {
+      issueId: issue.issueId || issue.id || 'Unknown',
+      title: issue.title || 'No title available',
+      status: issue.status || 'Unknown',
+      priority: issue.priority || 'Unknown',
+      reporter: issue.reporter || null,
+      assignee: issue.assignee || null,
+      created: issue.created || null,
+      modified: issue.modified || null,
+      browserUrl: issue.browserUrl || `https://issues.chromium.org/issues/${issue.issueId || issue.id}`
+    };
+  }
 
 }

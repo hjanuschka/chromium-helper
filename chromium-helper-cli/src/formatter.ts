@@ -36,6 +36,8 @@ function formatAsTable(data: any, context: string): string {
       return formatCommitsTable(data);
     case 'issue':
       return formatIssueTable(data);
+    case 'issue-search':
+      return formatIssueSearchTable(data);
     default:
       return JSON.stringify(data, null, 2);
   }
@@ -61,6 +63,8 @@ function formatAsPlain(data: any, context: string): string {
       return formatCommitsPlain(data);
     case 'issue':
       return formatIssuePlain(data);
+    case 'issue-search':
+      return formatIssueSearchPlain(data);
     default:
       return JSON.stringify(data, null, 2);
   }
@@ -223,6 +227,16 @@ function formatGerritStatusTable(data: any): string {
   
   output += table(infoData) + '\n';
   
+  // Extract and display commit message from current revision
+  if (data.current_revision && data.revisions && data.revisions[data.current_revision]) {
+    const currentRevision = data.revisions[data.current_revision];
+    if (currentRevision.commit && currentRevision.commit.message) {
+      output += chalk.bold.yellow('📝 Commit Message:\n');
+      output += chalk.gray('─'.repeat(40)) + '\n';
+      output += formatCommitMessage(currentRevision.commit.message) + '\n';
+    }
+  }
+  
   return output;
 }
 
@@ -234,6 +248,16 @@ function formatGerritStatusPlain(data: any): string {
   output += chalk.yellow('Owner: ') + (data.owner?.name || 'Unknown') + '\n';
   output += chalk.yellow('Created: ') + (data.created ? new Date(data.created).toLocaleDateString() : 'Unknown') + '\n';
   output += chalk.yellow('Updated: ') + (data.updated ? new Date(data.updated).toLocaleDateString() : 'Unknown') + '\n';
+  
+  // Extract and display commit message from current revision
+  if (data.current_revision && data.revisions && data.revisions[data.current_revision]) {
+    const currentRevision = data.revisions[data.current_revision];
+    if (currentRevision.commit && currentRevision.commit.message) {
+      output += '\n' + chalk.bold.yellow('📝 Commit Message:\n');
+      output += chalk.gray('─'.repeat(40)) + '\n';
+      output += formatCommitMessage(currentRevision.commit.message) + '\n';
+    }
+  }
   
   return output;
 }
@@ -579,4 +603,113 @@ function formatCommentContent(content: string): string {
     
     return lines.map(line => `  ${line}`).join('\n');
   }).join('\n\n');
+}
+
+function formatCommitMessage(message: string): string {
+  if (!message) return chalk.gray('(no commit message)');
+  
+  // Split message into lines and format nicely
+  const lines = message.split('\n').filter(line => line.trim().length > 0);
+  
+  return lines.map((line, index) => {
+    // First line (subject) should be bold
+    if (index === 0) {
+      return `  ${chalk.bold(line.trim())}`;
+    }
+    
+    // Subsequent lines with proper indentation
+    const trimmedLine = line.trim();
+    
+    // Special formatting for common patterns
+    if (trimmedLine.startsWith('Bug:')) {
+      return `  ${chalk.yellow(trimmedLine)}`;
+    } else if (trimmedLine.startsWith('Change-Id:')) {
+      return `  ${chalk.blue(trimmedLine)}`;
+    } else if (trimmedLine.startsWith('- https://crrev.com/')) {
+      return `  ${chalk.cyan(trimmedLine)}`;
+    } else if (trimmedLine.match(/^https?:\/\//)) {
+      return `  ${chalk.cyan(trimmedLine)}`;
+    } else {
+      return `  ${trimmedLine}`;
+    }
+  }).join('\n');
+}
+
+function formatIssueSearchTable(data: any): string {
+  if (!data || !data.issues || data.issues.length === 0) {
+    return chalk.yellow('No issues found');
+  }
+  
+  let output = chalk.bold.cyan(`Found ${data.total} issues for query: "${data.query}"\n\n`);
+  
+  const tableData = [
+    ['ID', 'Title', 'Status', 'Priority', 'Reporter', 'Modified']
+  ];
+  
+  data.issues.forEach((issue: any) => {
+    tableData.push([
+      issue.issueId,
+      (issue.title || 'No title').substring(0, 40) + '...',
+      issue.status || 'Unknown',
+      issue.priority || 'Unknown',
+      issue.reporter || 'Unknown',
+      issue.modified ? new Date(issue.modified).toLocaleDateString() : 'Unknown'
+    ]);
+  });
+  
+  output += table(tableData, {
+    border: {
+      topBody: '─',
+      topJoin: '┬',
+      topLeft: '┌',
+      topRight: '┐',
+      bottomBody: '─',
+      bottomJoin: '┴',
+      bottomLeft: '└',
+      bottomRight: '┘',
+      bodyLeft: '│',
+      bodyRight: '│',
+      bodyJoin: '│',
+      joinBody: '─',
+      joinLeft: '├',
+      joinRight: '┤',
+      joinJoin: '┼'
+    }
+  });
+  
+  if (data.searchUrl) {
+    output += '\n' + chalk.blue(`🔗 Web search: ${data.searchUrl}\n`);
+  }
+  
+  return output;
+}
+
+function formatIssueSearchPlain(data: any): string {
+  if (!data || !data.issues || data.issues.length === 0) {
+    return chalk.yellow('No issues found');
+  }
+  
+  let output = chalk.bold.cyan(`Found ${data.total} issues for query: "${data.query}"\n\n`);
+  
+  data.issues.forEach((issue: any, index: number) => {
+    output += chalk.bold.green(`${index + 1}. Issue ${issue.issueId}\n`);
+    output += chalk.yellow('Title: ') + (issue.title || 'No title') + '\n';
+    output += chalk.yellow('Status: ') + (issue.status || 'Unknown') + '\n';
+    output += chalk.yellow('Priority: ') + (issue.priority || 'Unknown') + '\n';
+    output += chalk.yellow('Reporter: ') + (issue.reporter || 'Unknown') + '\n';
+    output += chalk.yellow('Modified: ') + (issue.modified ? new Date(issue.modified).toLocaleDateString() : 'Unknown') + '\n';
+    output += chalk.blue(`🔗 ${issue.browserUrl}\n`);
+    
+    if (index < data.issues.length - 1) {
+      output += chalk.gray('─'.repeat(60)) + '\n';
+    }
+  });
+  
+  output += '\n';
+  
+  if (data.searchUrl) {
+    output += chalk.blue(`🌐 Web search: ${data.searchUrl}\n`);
+  }
+  
+  return output;
 }

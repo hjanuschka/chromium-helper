@@ -275,7 +275,57 @@ async function main() {
       }
     });
 
-  // Issue command
+  // Issue commands
+  const issues = program
+    .command('issues')
+    .alias('bugs')
+    .description('Chromium issue operations');
+
+  issues
+    .command('get')
+    .alias('show')
+    .description('Get Chromium issue details')
+    .argument('<id>', 'issue ID or URL')
+    .action(async (issueId) => {
+      try {
+        const globalOptions = program.opts();
+        api.setDebugMode(globalOptions.debug);
+        
+        const results = await api.getIssue(issueId);
+        const format = program.opts().format as OutputFormat;
+        console.log(formatOutput(results, format, 'issue'));
+      } catch (error) {
+        console.error('Issue lookup failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
+  issues
+    .command('search')
+    .alias('find')
+    .description('Search Chromium issues')
+    .argument('<query>', 'search query')
+    .option('--limit <number>', 'maximum number of results', '50')
+    .option('--start <number>', 'starting index for pagination', '0')
+    .action(async (query, options) => {
+      try {
+        const globalOptions = program.opts();
+        api.setDebugMode(globalOptions.debug);
+        
+        const results = await api.searchIssues(query, {
+          limit: parseInt(options.limit),
+          startIndex: parseInt(options.start)
+        });
+        
+        const format = program.opts().format as OutputFormat;
+        console.log(formatOutput(results, format, 'issue-search'));
+      } catch (error) {
+        console.error('Issue search failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
+  // Legacy issue command for backward compatibility
   program
     .command('issue')
     .alias('bug')
@@ -291,6 +341,131 @@ async function main() {
         console.log(formatOutput(results, format, 'issue'));
       } catch (error) {
         console.error('Issue lookup failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
+  // Direct issue search command for convenience
+  program
+    .command('issue-search')
+    .alias('isearch')
+    .description('Search Chromium issues (shortcut for issues search)')
+    .argument('<query>', 'search query')
+    .option('--limit <number>', 'maximum number of results', '50')
+    .option('--start <number>', 'starting index for pagination', '0')
+    .action(async (query, options) => {
+      try {
+        const globalOptions = program.opts();
+        api.setDebugMode(globalOptions.debug);
+        
+        const results = await api.searchIssues(query, {
+          limit: parseInt(options.limit),
+          startIndex: parseInt(options.start)
+        });
+        
+        const format = program.opts().format as OutputFormat;
+        console.log(formatOutput(results, format, 'issue-search'));
+      } catch (error) {
+        console.error('Issue search failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
+  // PDFium Gerrit commands
+  const pdfium = program
+    .command('pdfium')
+    .alias('pdf')
+    .description('PDFium Gerrit operations');
+
+  pdfium
+    .command('status')
+    .description('Get PDFium CL status and test results')
+    .argument('<cl>', 'CL number or URL')
+    .action(async (cl) => {
+      try {
+        const globalOptions = program.opts();
+        api.setDebugMode(globalOptions.debug);
+        
+        const results = await api.getPdfiumGerritCLStatus(cl);
+        const format = program.opts().format as OutputFormat;
+        console.log(formatOutput(results, format, 'gerrit-status'));
+      } catch (error) {
+        console.error('PDFium Gerrit status failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
+  pdfium
+    .command('comments')
+    .description('Get PDFium CL review comments')
+    .argument('<cl>', 'CL number or URL')
+    .option('-p, --patchset <number>', 'specific patchset number')
+    .option('--no-resolved', 'exclude resolved comments')
+    .action(async (cl, options) => {
+      try {
+        const globalOptions = program.opts();
+        api.setDebugMode(globalOptions.debug);
+        
+        const results = await api.getPdfiumGerritCLComments({
+          clNumber: cl,
+          patchset: options.patchset ? parseInt(options.patchset) : undefined,
+          includeResolved: options.resolved !== false
+        });
+        
+        const format = program.opts().format as OutputFormat;
+        console.log(formatOutput(results, format, 'gerrit-comments'));
+      } catch (error) {
+        console.error('PDFium Gerrit comments failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
+  pdfium
+    .command('diff')
+    .description('Get PDFium CL diff/changes')
+    .argument('<cl>', 'CL number or URL')
+    .option('-p, --patchset <number>', 'specific patchset number')
+    .option('-f, --file <path>', 'specific file path to get diff for')
+    .action(async (cl, options) => {
+      try {
+        const globalOptions = program.opts();
+        api.setDebugMode(globalOptions.debug);
+        
+        const results = await api.getPdfiumGerritCLDiff({
+          clNumber: cl,
+          patchset: options.patchset ? parseInt(options.patchset) : undefined,
+          filePath: options.file
+        });
+        
+        const format = program.opts().format as OutputFormat;
+        console.log(formatOutput(results, format, 'gerrit-diff'));
+      } catch (error) {
+        console.error('PDFium Gerrit diff failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
+  pdfium
+    .command('file')
+    .description('Get file content from PDFium CL patchset')
+    .argument('<cl>', 'CL number or URL')
+    .argument('<path>', 'file path to get content for')
+    .option('-p, --patchset <number>', 'specific patchset number')
+    .action(async (cl, filePath, options) => {
+      try {
+        const globalOptions = program.opts();
+        api.setDebugMode(globalOptions.debug);
+        
+        const results = await api.getPdfiumGerritPatchsetFile({
+          clNumber: cl,
+          filePath,
+          patchset: options.patchset ? parseInt(options.patchset) : undefined
+        });
+        
+        const format = program.opts().format as OutputFormat;
+        console.log(formatOutput(results, format, 'gerrit-file'));
+      } catch (error) {
+        console.error('PDFium Gerrit file failed:', error instanceof Error ? error.message : String(error));
         process.exit(1);
       }
     });
