@@ -55,6 +55,26 @@
 1. **🔧 CLI Tool** (`chromium-helper`) - Direct terminal access with `ch` commands
 2. **🤖 MCP Server** (`chromium-codesearch-mcp`) - AI integration for Claude Desktop
 
+### 💡 Why CLI First?
+
+As [Armin Ronacher points out](https://x.com/mitsuhiko/status/1939105797448872265), a well-designed CLI is often superior to context-cluttering MCPs. Our CLI works seamlessly with ANY AI coding assistant:
+
+**Claude, Cursor, Gemini, or any AI:** Just ask them to run:
+```bash
+npx chromium-helper --ai
+```
+
+This dumps comprehensive documentation that the AI can use to help you explore Chromium's codebase without any special configuration or context pollution.
+
+#### Example AI Prompt:
+> "Run `npx chromium-helper --ai` to learn the tool, then help me find all WebRTC-related memory leaks in Chromium"
+
+The AI will:
+1. Execute the command to understand all capabilities
+2. Use appropriate search commands with filters
+3. Analyze results and provide insights
+4. All without cluttering your AI's context window!
+
 ---
 
 ## 🚀 Quick Start
@@ -73,6 +93,20 @@ ch search "WebContents" --type class
 ch gerrit status 6624568 --format json
 ch pdfium bots 130850 --failed-only
 ```
+
+#### 🤖 Using with AI Coding Assistants (Claude Code, Cursor, Gemini, etc.)
+
+Simply tell your AI assistant:
+```
+Run: npx chromium-helper --ai
+Then help me [your task here]
+```
+
+Example tasks:
+- "Find all uses of base::RefCounted in the codebase"
+- "Check if CL 6624568 has passing tests"
+- "Search for recent security fixes in the renderer"
+- "Find who owns the password manager code"
 
 ### MCP Server - For AI Integration
 
