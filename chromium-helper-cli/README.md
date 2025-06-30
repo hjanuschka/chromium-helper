@@ -12,6 +12,7 @@ A powerful command-line tool for searching and exploring Chromium and PDFium sou
 
 - **🔍 Advanced Code Search** - Search Chromium and PDFium codebases with powerful syntax
 - **🔧 Complete Gerrit Integration** - View CLs, comments, diffs, and file content for both projects
+- **🤖 Try-Bot Status** - View LUCI try-bot results for Chromium and PDFium CLs
 - **🐛 Issue Tracking** - Search and view Chromium issues with detailed information
 - **📊 PDFium Support** - Full support for PDFium Gerrit operations and code search
 - **🎨 Multiple Output Formats** - JSON, table, and plain text formats for different use cases
@@ -200,6 +201,9 @@ ch gerrit <command> [options]
 Commands:
   status <cl>                Get CL status and test results
   comments <cl> [options]    Get CL review comments
+  diff <cl> [options]        Get CL diff/changes
+  file <cl> <path> [options] Get file content from CL patchset
+  bots <cl> [options]        Get try-bot status for CL
 ```
 
 **Examples:**
@@ -215,6 +219,10 @@ ch gerrit diff 6624568 --file "base/logging.cc"
 
 # Get file content from patchset
 ch gerrit file 6624568 "base/logging.cc" --patchset 3
+
+# Get try-bot status
+ch gerrit bots 6624568
+ch gerrit bots 6624568 --failed-only
 ```
 
 ### `pdfium` - PDFium Gerrit Operations
@@ -230,6 +238,7 @@ Commands:
   comments <cl> [options]    Get PDFium CL review comments
   diff <cl> [options]        Get PDFium CL diff/changes
   file <cl> <path> [options] Get file content from PDFium CL patchset
+  bots <cl> [options]        Get try-bot status for PDFium CL
 ```
 
 **Examples:**
@@ -245,6 +254,10 @@ ch pdfium diff 130850 --file "fpdfsdk/fpdf_view.cpp"
 
 # Get PDFium file content
 ch pdfium file 130850 "fpdfsdk/fpdf_view.cpp" --patchset 9
+
+# Get PDFium try-bot status
+ch pdfium bots 130850
+ch pdfium bots 130850 --failed-only
 ```
 
 ### `issues` - Chromium Issue Operations
