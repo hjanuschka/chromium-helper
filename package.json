@@ -1,6 +1,6 @@
 {
   "name": "chromium-codesearch-mcp",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "MCP server for searching Chromium source code via source.chromium.org with advanced Code Search syntax support",
   "type": "module",
   "main": "dist/index.js",
@@ -30,12 +30,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hjanuschka/chromium-codesearch-mcp.git"
+    "url": "git+https://github.com/hjanuschka/chromium-helper.git"
   },
   "bugs": {
-    "url": "https://github.com/hjanuschka/chromium-codesearch-mcp/issues"
+    "url": "https://github.com/hjanuschka/chromium-helper/issues"
   },
-  "homepage": "https://github.com/hjanuschka/chromium-codesearch-mcp#readme",
+  "homepage": "https://github.com/hjanuschka/chromium-helper#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.6.0",
     "cheerio": "^1.1.0",
