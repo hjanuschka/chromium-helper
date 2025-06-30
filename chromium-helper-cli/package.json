@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "bin": {
     "chromium-helper": "dist/index.js",
-    "cr": "dist/index.js"
+    "ch": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -29,12 +29,13 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hjanuschka/chromium-helper-cli.git"
+    "url": "git+https://github.com/hjanuschka/chromium-codesearch-mcp.git",
+    "directory": "chromium-helper-cli"
   },
   "bugs": {
-    "url": "https://github.com/hjanuschka/chromium-helper-cli/issues"
+    "url": "https://github.com/hjanuschka/chromium-codesearch-mcp/issues"
   },
-  "homepage": "https://github.com/hjanuschka/chromium-helper-cli#readme",
+  "homepage": "https://github.com/hjanuschka/chromium-codesearch-mcp/tree/main/chromium-helper-cli#readme",
   "dependencies": {
     "commander": "^12.0.0",
     "cheerio": "^1.1.0",
