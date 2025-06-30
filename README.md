@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="Chromium Helper Logo" width="200" height="200">
+</p>
+
 # Chromium CodeSearch Tools
 
 This repository provides two powerful tools for exploring Chromium and PDFium source code:

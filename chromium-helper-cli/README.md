@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="Chromium Helper Logo" width="200" height="200">
+</p>
+
 # Chromium Helper CLI
 
 A powerful command-line tool for searching and exploring Chromium and PDFium source code using Google's official APIs. Features comprehensive Gerrit integration, issue tracking, and support for both Chromium and PDFium projects.
