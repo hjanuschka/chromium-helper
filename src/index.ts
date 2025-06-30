@@ -3847,7 +3847,7 @@ class ChromiumCodeSearchServer {
   
   private async fetchLuciRunDetails(luciUrl: string): Promise<any[]> {
     try {
-      // Extract run ID from URL
+      // Extract run ID from URL (works for both chromium and pdfium)
       const runIdMatch = luciUrl.match(/\/run\/(?:chromium|pdfium)\/([^\/\s]+)/);
       if (!runIdMatch) {
         throw new Error('Could not extract run ID from LUCI URL');
@@ -3901,45 +3901,31 @@ class ChromiumCodeSearchServer {
     const foundBots = new Set<string>();
     
     try {
-      // Look for the specific pattern: chrome/try/bot-name
-      const chromeTryPattern = /chrome\/try\/([a-zA-Z0-9_-]+)/g;
+      // Simple approach: Find all <a> elements with tryjob-chip classes
+      // This works for both Chromium and PDFium without hardcoding patterns
+      const tryjobPattern = /<a[^>]*class="[^"]*tryjob-chip[^"]*"[^>]*>(.*?)<\/a>/gs;
       let match;
       
-      while ((match = chromeTryPattern.exec(html)) !== null) {
-        const botName = match[1];
+      while ((match = tryjobPattern.exec(html)) !== null) {
+        const fullMatch = match[0];
+        const innerText = match[1];
+        
+        // Extract bot name from the inner text (trim whitespace)
+        const botName = innerText.trim().replace(/\s+/g, ' ');
+        
         if (botName && botName.length > 3 && !foundBots.has(botName)) {
           foundBots.add(botName);
           
-          // Look for status indicators around this bot
-          const contextStart = Math.max(0, match.index - 500);
-          const contextEnd = Math.min(html.length, match.index + 500);
-          const context = html.slice(contextStart, contextEnd);
-          
+          // Extract status from class attribute
           let status = 'UNKNOWN';
-          
-          // Look for various status patterns in the surrounding context
-          if (this.checkForStatus(context, 'SUCCESS', 'PASSED', 'success')) {
+          if (fullMatch.includes('tryjob-chip passed')) {
             status = 'PASSED';
-          } else if (this.checkForStatus(context, 'FAILURE', 'FAILED', 'failure', 'error')) {
+          } else if (fullMatch.includes('tryjob-chip failed')) {
             status = 'FAILED';
-          } else if (this.checkForStatus(context, 'RUNNING', 'STARTED', 'running', 'pending')) {
+          } else if (fullMatch.includes('tryjob-chip running')) {
             status = 'RUNNING';
-          } else if (this.checkForStatus(context, 'CANCELED', 'CANCELLED', 'canceled')) {
+          } else if (fullMatch.includes('tryjob-chip canceled')) {
             status = 'CANCELED';
-          }
-          
-          // Also check for CSS class patterns that indicate status
-          if (status === 'UNKNOWN') {
-            if (context.includes('class="green"') || context.includes('color:green') || 
-                context.includes('background-color:green') || context.includes('rgb(76, 175, 80)')) {
-              status = 'PASSED';
-            } else if (context.includes('class="red"') || context.includes('color:red') || 
-                       context.includes('background-color:red') || context.includes('rgb(244, 67, 54)')) {
-              status = 'FAILED';
-            } else if (context.includes('class="yellow"') || context.includes('color:orange') ||
-                       context.includes('background-color:yellow') || context.includes('rgb(255, 193, 7)')) {
-              status = 'RUNNING';
-            }
           }
           
           bots.push({
@@ -3952,45 +3938,6 @@ class ChromiumCodeSearchServer {
         }
       }
       
-      // If we didn't find many bots with chrome/try/ pattern, try other patterns
-      if (bots.length < 10) {
-        // Look for standard Chromium bot naming patterns
-        const standardBotPattern = /(?:android|chromeos|linux|mac|win|ios)[-_]?(?:compile|test|rel|dbg|asan|msan|tsan|gpu|arm64|x64|x86)[-_]?[a-zA-Z0-9_-]*/gi;
-        let match;
-        
-        while ((match = standardBotPattern.exec(html)) !== null && bots.length < 50) {
-          const botName = match[0];
-          if (botName.length > 8 && !foundBots.has(botName)) {
-            foundBots.add(botName);
-            
-            // Get context around this bot name
-            const contextStart = Math.max(0, match.index - 300);
-            const contextEnd = Math.min(html.length, match.index + 300);
-            const context = html.slice(contextStart, contextEnd);
-            
-            let status = 'UNKNOWN';
-            
-            if (this.checkForStatus(context, 'SUCCESS', 'PASSED', 'success')) {
-              status = 'PASSED';
-            } else if (this.checkForStatus(context, 'FAILURE', 'FAILED', 'failure', 'error')) {
-              status = 'FAILED';
-            } else if (this.checkForStatus(context, 'RUNNING', 'STARTED', 'running')) {
-              status = 'RUNNING';
-            } else if (this.checkForStatus(context, 'CANCELED', 'CANCELLED', 'canceled')) {
-              status = 'CANCELED';
-            }
-            
-            bots.push({
-              name: botName,
-              status: status,
-              luciUrl: luciUrl,
-              runId: runId,
-              summary: `${status.toLowerCase()}`
-            });
-          }
-        }
-      }
-      
     } catch (error) {
       // Ignore parsing errors
     }
@@ -3998,6 +3945,42 @@ class ChromiumCodeSearchServer {
     return bots;
   }
   
+  private extractBotStatus(html: string, matchIndex: number): string {
+    // Look for status indicators around this bot
+    const contextStart = Math.max(0, matchIndex - 500);
+    const contextEnd = Math.min(html.length, matchIndex + 500);
+    const context = html.slice(contextStart, contextEnd);
+    
+    let status = 'UNKNOWN';
+    
+    // Look for various status patterns in the surrounding context
+    if (this.checkForStatus(context, 'SUCCESS', 'PASSED', 'success')) {
+      status = 'PASSED';
+    } else if (this.checkForStatus(context, 'FAILURE', 'FAILED', 'failure', 'error')) {
+      status = 'FAILED';
+    } else if (this.checkForStatus(context, 'RUNNING', 'STARTED', 'running', 'pending')) {
+      status = 'RUNNING';
+    } else if (this.checkForStatus(context, 'CANCELED', 'CANCELLED', 'canceled')) {
+      status = 'CANCELED';
+    }
+    
+    // Also check for CSS class patterns that indicate status
+    if (status === 'UNKNOWN') {
+      if (context.includes('class="green"') || context.includes('color:green') || 
+          context.includes('background-color:green') || context.includes('rgb(76, 175, 80)')) {
+        status = 'PASSED';
+      } else if (context.includes('class="red"') || context.includes('color:red') || 
+                 context.includes('background-color:red') || context.includes('rgb(244, 67, 54)')) {
+        status = 'FAILED';
+      } else if (context.includes('class="yellow"') || context.includes('color:orange') ||
+                 context.includes('background-color:yellow') || context.includes('rgb(255, 193, 7)')) {
+        status = 'RUNNING';
+      }
+    }
+    
+    return status;
+  }
+
   private checkForStatus(context: string, ...statusWords: string[]): boolean {
     const lowerContext = context.toLowerCase();
     return statusWords.some(word => lowerContext.includes(word.toLowerCase()));
