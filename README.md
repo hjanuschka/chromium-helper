@@ -2,58 +2,97 @@
 
 ![Chromium Helper Logo](logo.png)
 
-</div>
-
 # Chromium Helper
 
-The ultimate toolkit for exploring Chromium and PDFium source code, offering both a powerful standalone CLI and an AI-integrated MCP server.
+[![npm version](https://img.shields.io/npm/v/chromium-helper.svg)](https://www.npmjs.com/package/chromium-helper)
+[![npm downloads](https://img.shields.io/npm/dm/chromium-helper.svg)](https://www.npmjs.com/package/chromium-helper)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub stars](https://img.shields.io/github/stars/hjanuschka/chromium-helper.svg)](https://github.com/hjanuschka/chromium-helper/stargazers)
+
+**The ultimate toolkit for exploring Chromium and PDFium source code**  
+*CLI tool & MCP server for code search, Gerrit integration, and issue tracking*
+
+[Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Contributing](#-contributing) • [License](#-license)
+
+</div>
+
+## 📋 Table of Contents
+
+- [Features](#-features)
+- [Quick Start](#-quick-start)
+- [Documentation](#-documentation)
+- [CLI Tool Usage](#-cli-tool-usage)
+- [MCP Server Usage](#-mcp-server-usage)
+- [Installation](#-installation)
+- [Development](#-development)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+## 🎯 Features
+
+### Why Use Chromium Helper?
+
+- **🚀 Zero Friction** - Start searching immediately with `npx`, no setup required
+- **📊 Real-time Data** - Direct access to Google's official APIs, same as source.chromium.org
+- **🔍 Smart Search** - Full Google CodeSearch syntax with regex, filters, and more
+- **🤖 AI-Ready** - JSON output and MCP integration for automation
+- **📱 Cross-Platform** - Works on macOS, Linux, and Windows
+
+### What Can You Do?
+
+| Feature | Description | Example |
+|---------|-------------|---------|
+| **Code Search** | Search 20M+ lines with advanced syntax | Find all LOG(INFO) calls |
+| **Symbol Lookup** | Find definitions and usages | Locate Browser::Create |
+| **Gerrit Review** | Check CLs, comments, diffs, try-bots | Review CL 6624568 |
+| **Issue Tracking** | Search and analyze bugs | Find memory leak issues |
+| **PDFium Support** | Full PDFium code and reviews | Check PDFium CL 130850 |
+| **Commit History** | Search by message, author, date | Find recent security fixes |
+| **Code Ownership** | Find OWNERS and reviewers | Who owns chrome/browser? |
+
+### Two Ways to Use
+
+1. **🔧 CLI Tool** (`chromium-helper`) - Direct terminal access with `ch` commands
+2. **🤖 MCP Server** (`chromium-codesearch-mcp`) - AI integration for Claude Desktop
 
 ---
 
-# 🔧 Chromium Helper CLI
+## 🚀 Quick Start
 
-**Standalone CLI tool - No MCP required!** Search and explore Chromium source code directly from your terminal.
+### CLI Tool - Use Instantly!
 
-## ✨ Quick Start
-
-### Option 1: Use Instantly (No Installation)
 ```bash
-# Run directly with npx - no installation needed!
+# No installation needed - just use npx!
 npx chromium-helper search "LOG(INFO)" --limit 5
-npx chromium-helper gerrit status 6624568
-npx chromium-helper pdfium status 130850
-npx chromium-helper issues search "memory leak"
-```
+npx chromium-helper gerrit bots 6624568
+npx chromium-helper --ai  # Show comprehensive AI guide
 
-### Option 2: Install Globally
-```bash
-# Install once, use anywhere with short alias
+# Or install globally for the short 'ch' alias
 npm install -g chromium-helper
-
-# Then use with short 'ch' command
-ch search "LOG(INFO)" --limit 5
-ch gerrit status 6624568
-ch pdfium status 130850
-ch issues search "memory leak"
+ch search "WebContents" --type class
+ch gerrit status 6624568 --format json
+ch pdfium bots 130850 --failed-only
 ```
 
-## 🎯 Key Features
+### MCP Server - For AI Integration
 
-- **🔍 Advanced Code Search** - Search Chromium and PDFium with powerful syntax
-- **🔧 Complete Gerrit Integration** - CL status, comments, diffs, file content  
-- **🤖 Try-Bot Status** - View LUCI try-bot results for CLs
-- **🐛 Issue Tracking** - Search and view Chromium issues
-- **📊 PDFium Support** - Full PDFium Gerrit operations
-- **📝 Commit History** - Search commits, authors, dates
-- **👥 Code Ownership** - Find OWNERS files and reviewers
-- **⚡ Real-time Data** - Uses official Google APIs
-- **🤖 AI-Friendly** - JSON output for automation
+```bash
+# Add to Claude Desktop (see configuration below)
+npm install -g chromium-codesearch-mcp
 
-## 📖 Full CLI Documentation
+# Or test directly
+echo '{"query": "LOG(INFO)", "limit": 3}' | npx chromium-codesearch-mcp search_chromium_code
+```
 
-👉 **[Complete CLI Guide & Examples](./chromium-helper-cli/README.md)**
+## 📖 Documentation
 
-## 🚀 Example Commands
+### CLI Tool Documentation
+
+- **Quick Help**: Run `ch --help` for command overview
+- **AI Guide**: Run `ch --ai` for comprehensive usage guide with examples
+- **Full Documentation**: See [CLI README](./chromium-helper-cli/README.md)
+
+### Example Commands
 
 ```bash
 # Code search
@@ -81,47 +120,76 @@ ch commits "password manager" --author "chrome-team" --since "2025-06-01"
 ch owners "chrome/browser/ui/browser.cc"
 ```
 
+## 🔧 CLI Tool Usage
+
+The CLI provides comprehensive access to Chromium's codebase with intuitive commands.
+
+### Global Options
+- `--format <json|table|plain>` - Output format (default: plain)
+- `--debug` - Enable debug logging
+- `--no-color` - Disable colored output
+- `--ai` - Show comprehensive AI usage guide
+
+### Key Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `search` | Search code with Google syntax | `ch search "LOG(INFO)" --limit 5` |
+| `symbol` | Find symbol definitions | `ch symbol Browser::Create` |
+| `file` | Get file content | `ch file "base/logging.h" --start 100 --end 200` |
+| `gerrit` | Gerrit CL operations | `ch gerrit bots 6624568 --failed-only` |
+| `pdfium` | PDFium Gerrit operations | `ch pdfium status 130850` |
+| `issues` | Search/view issues | `ch issues search "memory leak"` |
+| `commits` | Search commit history | `ch commits "fix" --author "chrome-team"` |
+| `owners` | Find OWNERS files | `ch owners "chrome/browser/ui/"` |
+
+### Output Formats
+
+```bash
+# Human-readable (default)
+ch search "WebContents"
+
+# JSON for scripts/AI
+ch search "WebContents" --format json | jq '.[] | .file'
+
+# Table format
+ch gerrit bots 6624568 --format table
+```
+
 ---
 
-# 🤖 Chromium CodeSearch MCP Server
+## 🤖 MCP Server Usage
 
-For AI systems and Claude Desktop integration - provides the same powerful functionality via Model Context Protocol.
+The MCP server enables AI assistants like Claude to search and analyze Chromium code.
 
-## ⚡ Quick Start
+### Claude Desktop Configuration
 
-### Option 1: Use Instantly (No Installation)
-```bash
-# Run directly with npx - no installation needed!
-npx chromium-codesearch-mcp
+Add to your `claude_desktop_config.json`:
 
-# Test it works
-echo '{"query": "LOG(INFO)", "limit": 3}' | npx chromium-codesearch-mcp search_chromium_code
+```json
+{
+  "mcpServers": {
+    "chromium-codesearch": {
+      "command": "npx",
+      "args": ["chromium-codesearch-mcp"]
+    }
+  }
+}
 ```
 
-### Option 2: Install Globally  
-```bash
-# Install once for faster startup
-npm install -g chromium-codesearch-mcp
+Or if installed globally:
 
-# Then use directly
-chromium-codesearch-mcp
+```json
+{
+  "mcpServers": {
+    "chromium-codesearch": {
+      "command": "chromium-codesearch-mcp"
+    }
+  }
+}
 ```
 
-## 🎯 MCP Features
-
-A powerful MCP server that provides comprehensive access to Chromium and PDFium source code repositories via Google's official CodeSearch APIs.
-
-- **🔍 Advanced Code Search** - Search with Google's Code Search syntax
-- **🎯 Symbol Lookup** - Find definitions, declarations, and usage examples  
-- **🔧 Complete Gerrit Integration** - CL status, review comments, diffs, and file content
-- **🐛 Issue Tracking** - Search and fetch detailed Chromium issue information
-- **📊 PDFium Support** - Full support for PDFium Gerrit operations
-- **📝 Commit History** - Search commit messages, author activity, and development history
-- **👥 Code Ownership** - Find OWNERS files and reviewers for any file or directory
-- **🔗 Direct Links** - Every result includes clickable URLs to view code online
-- **⚡ Real-time Data** - Uses the same backend infrastructure as official Google sites
-
-## 🛠️ MCP Tools Available
+### Available MCP Tools
 
 ### Core Search & Navigation
 - **`search_chromium_code`** - Advanced code search with filtering options
@@ -146,102 +214,171 @@ A powerful MCP server that provides comprehensive access to Chromium and PDFium 
 - **`search_chromium_commits`** - Commit history search with date filtering
 - **`find_chromium_owners_file`** - Code ownership and reviewer discovery
 
-## 📋 Claude Desktop Configuration
+### Example MCP Prompts
 
-Add to your `claude_desktop_config.json`:
+Ask Claude to:
+- "Search for LOG(INFO) usage in Chromium"
+- "Find the definition of Browser::Create"
+- "Check the status of Gerrit CL 6624568"
+- "Search for memory leak issues"
+- "Get the diff for PDFium CL 130850"
 
-```json
-{
-  "mcpServers": {
-    "chromium-codesearch": {
-      "command": "chromium-codesearch-mcp"
-    }
-  }
-}
-```
+---
 
-## 💡 Example MCP Usage
+## 📦 Installation
 
-**Search for code patterns:**
-```
-Use search_chromium_code to find "WTF::Partitions" usage with limit 5
-```
+### CLI Tool
 
-**Find symbol definitions:**
-```
-Use find_chromium_symbol to find "Browser::Create" definitions and examples
-```
-
-**Check Gerrit CL status:**
-```
-Use get_gerrit_cl_status to check the status of CL 6624568
-```
-
-**Search for issues:**
-```
-Use search_chromium_issues to find all issues related to "memory leak"
-```
-
-## 🏗️ Installation Options
-
-### Option 1: From npm (Recommended)
 ```bash
+# Option 1: Use without installation (recommended)
+npx chromium-helper <command>
+
+# Option 2: Install globally for 'ch' shortcut
+npm install -g chromium-helper
+```
+
+### MCP Server
+
+```bash
+# Option 1: Use with npx in Claude config (recommended)
+# Add to claude_desktop_config.json as shown above
+
+# Option 2: Install globally
 npm install -g chromium-codesearch-mcp
 ```
 
-### Option 2: Using npx (No Installation)
-```bash
-npx chromium-codesearch-mcp
-```
+### From Source
 
-### Option 3: From Source
 ```bash
 git clone https://github.com/hjanuschka/chromium-helper.git
 cd chromium-helper
-npm install
-npm run build
+
+# For CLI
+cd chromium-helper-cli
+npm install && npm run build
+npm link  # Optional: make globally available
+
+# For MCP Server
+cd ../
+npm install && npm run build
 ```
 
 ## 🔧 Development
 
-- `npm run build` - Build TypeScript code
-- `npm run dev` - Watch for changes and rebuild  
-- `npm start` - Start the MCP server
+### Prerequisites
+- Node.js 18+ 
+- TypeScript
+- npm or yarn
 
-## 📊 Implementation Details
+### Development Commands
 
-This MCP server uses Google's **official Chromium CodeSearch API**:
-- **Endpoint**: `https://grimoireoss-pa.clients6.google.com/batch`
-- **Real-time**: Searches the live Chromium repository
-- **Authentication**: Uses public API (configurable with `CHROMIUM_SEARCH_API_KEY`)
-- **Features**: Match highlighting, pagination, rich metadata
+```bash
+# Install dependencies
+npm install
 
-## 🎯 Use Cases
+# Build both packages
+npm run build
 
-### AI & Automation
-- Integrate Chromium code search into AI workflows
-- Automated code analysis and review assistance
-- Real-time code exploration for development tools
+# Watch mode (CLI)
+cd chromium-helper-cli && npm run dev
 
-### Development & Research  
-- Deep-dive code exploration for complex features
-- Security research and vulnerability analysis
-- Architecture understanding and documentation
-- Performance optimization research
+# Test MCP server
+npm test
 
-### Code Review & Quality
-- Enhanced Gerrit review workflows
-- Issue tracking and bug investigation
-- Code ownership and reviewer discovery
-- Commit history analysis
+# Run locally
+node dist/index.js
+```
 
-## 📜 License
+### Project Structure
 
-MIT License - see [LICENSE](LICENSE) for details.
+```
+chromium-helper/
+├── chromium-helper-cli/    # CLI tool package
+│   ├── src/               # TypeScript source
+│   ├── dist/              # Compiled output
+│   └── package.json
+├── src/                   # MCP server source
+├── dist/                  # MCP compiled output
+├── package.json           # MCP server package
+└── README.md             # This file
+```
 
 ## 🤝 Contributing
 
-Contributions welcome! Please read the contributing guidelines and submit issues or pull requests.
+We welcome contributions! Here's how you can help:
+
+### Reporting Issues
+- Check existing issues first
+- Include reproduction steps
+- Mention your OS and Node version
+
+### Submitting PRs
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Code Style
+- Use TypeScript
+- Follow existing patterns
+- Add tests for new features
+- Update documentation
+
+### Ideas for Contributions
+- Add more search filters
+- Improve error messages
+- Add new output formats
+- Enhance PDFium support
+- Add more MCP tools
+
+## 📊 Technical Details
+
+### API Usage
+- **Chromium CodeSearch**: `https://grimoireoss-pa.clients6.google.com`
+- **Gerrit API**: `https://chromium-review.googlesource.com`
+- **Issue Tracker**: `https://issues.chromium.org`
+
+### Performance
+- Caches API responses
+- Parallel request support
+- Efficient pagination
+- Minimal dependencies
+
+## ❓ FAQ
+
+### Q: Do I need to install anything to use this?
+No! Just use `npx chromium-helper <command>` to run instantly.
+
+### Q: What's the difference between the CLI and MCP server?
+- **CLI**: Direct terminal usage for developers
+- **MCP**: Integration with AI assistants like Claude
+
+### Q: Can I search PDFium code too?
+Yes! Full PDFium support for code search and Gerrit operations.
+
+### Q: Is this official Google software?
+No, but it uses Google's official public APIs that power source.chromium.org.
+
+### Q: How do I see all available commands?
+Run `ch --ai` for a comprehensive guide, or `ch --help` for a quick overview.
+
+### Q: Can I use this in scripts?
+Yes! Use `--format json` for machine-readable output.
+
+### Q: What API key do I need?
+None required! It uses the public API by default.
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## 🌟 Acknowledgments
+
+- Google Chromium team for the amazing CodeSearch API
+- PDFium team for their great documentation
+- MCP protocol team at Anthropic
+- All contributors and users
 
 ---
 
@@ -249,6 +386,6 @@ Contributions welcome! Please read the contributing guidelines and submit issues
 
 **Made with ❤️ for the Chromium community**
 
-[🚀 Get Started with CLI](./chromium-helper-cli/README.md) • [🤖 MCP Documentation](#-chromium-codesearch-mcp-server) • [📋 Report Issues](https://github.com/hjanuschka/chromium-helper/issues)
+[NPM (CLI)](https://www.npmjs.com/package/chromium-helper) • [NPM (MCP)](https://www.npmjs.com/package/chromium-codesearch-mcp) • [Report Issues](https://github.com/hjanuschka/chromium-helper/issues) • [Star on GitHub](https://github.com/hjanuschka/chromium-helper)
 
 </div>
