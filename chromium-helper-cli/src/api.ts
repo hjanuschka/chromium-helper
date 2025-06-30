@@ -2368,6 +2368,111 @@ export class ChromiumAPI {
     }
   }
 
+  async getPdfiumGerritCLTrybotStatus(params: { clNumber: string; patchset?: number; failedOnly?: boolean }): Promise<any> {
+    const clId = this.extractCLNumber(params.clNumber);
+    
+    try {
+      // Get CL messages to find LUCI Change Verifier URLs (PDFium)
+      const messagesUrl = `https://pdfium-review.googlesource.com/changes/${clId}/messages`;
+      const response = await fetch(messagesUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch PDFium messages: ${response.status}`);
+      }
+      
+      const text = await response.text();
+      const jsonText = text.replace(/^\)\]\}'\n/, '');
+      const messages = JSON.parse(jsonText);
+      
+      // Find LUCI Change Verifier URLs from messages (PDFium might use different patterns)
+      const luciUrls = this.extractPdfiumLuciVerifierUrls(messages, params.patchset);
+      
+      if (luciUrls.length === 0) {
+        return {
+          clId,
+          patchset: params.patchset || 'latest',
+          totalBots: 0,
+          failedBots: 0,
+          passedBots: 0,
+          runningBots: 0,
+          bots: [],
+          isPdfium: true,
+          message: 'No LUCI runs found for this PDFium CL'
+        };
+      }
+      
+      // Get detailed bot status from the most recent LUCI run
+      const latestLuciUrl = luciUrls[0];
+      const detailedBots = await this.fetchLuciRunDetails(latestLuciUrl.url);
+      
+      // Filter by failed only if requested
+      const filteredBots = params.failedOnly 
+        ? detailedBots.filter(bot => bot.status === 'FAILED')
+        : detailedBots;
+      
+      return {
+        clId,
+        patchset: latestLuciUrl.patchset,
+        runId: latestLuciUrl.runId,
+        luciUrl: latestLuciUrl.url,
+        totalBots: detailedBots.length,
+        failedBots: detailedBots.filter(bot => bot.status === 'FAILED').length,
+        passedBots: detailedBots.filter(bot => bot.status === 'PASSED').length,
+        runningBots: detailedBots.filter(bot => bot.status === 'RUNNING').length,
+        canceledBots: detailedBots.filter(bot => bot.status === 'CANCELED').length,
+        bots: filteredBots,
+        timestamp: latestLuciUrl.timestamp,
+        isPdfium: true
+      };
+      
+    } catch (error: any) {
+      throw new GerritAPIError(`Failed to get PDFium trybot status: ${error.message}`, undefined, error);
+    }
+  }
+
+  private extractPdfiumLuciVerifierUrls(messages: any[], targetPatchset?: number): Array<{
+    url: string;
+    runId: string;
+    patchset: number;
+    timestamp: string;
+  }> {
+    const luciUrls: Array<{ url: string; runId: string; patchset: number; timestamp: string }> = [];
+    
+    for (const msg of messages) {
+      // Skip if we want a specific patchset and this message is for a different one
+      if (targetPatchset && msg._revision_number && msg._revision_number !== targetPatchset) {
+        continue;
+      }
+      
+      // Look for LUCI Change Verifier URLs in messages (PDFium might have different URL patterns)
+      if (msg.message) {
+        // Try standard PDFium LUCI pattern
+        let luciMatch = msg.message.match(/Follow status at: (https:\/\/luci-change-verifier\.appspot\.com\/ui\/run\/pdfium\/([^\/\s]+))/);
+        
+        // If PDFium-specific pattern doesn't match, try the standard Chromium pattern
+        if (!luciMatch) {
+          luciMatch = msg.message.match(/Follow status at: (https:\/\/luci-change-verifier\.appspot\.com\/ui\/run\/chromium\/([^\/\s]+))/);
+        }
+        
+        if (luciMatch) {
+          luciUrls.push({
+            url: luciMatch[1],
+            runId: luciMatch[2],
+            patchset: msg._revision_number || 0,
+            timestamp: msg.date
+          });
+        }
+      }
+    }
+    
+    // Return most recent first
+    return luciUrls.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }
+
   async searchIssues(query: string, options: { limit?: number; startIndex?: number } = {}): Promise<any> {
     const { limit = 50, startIndex = 0 } = options;
     
