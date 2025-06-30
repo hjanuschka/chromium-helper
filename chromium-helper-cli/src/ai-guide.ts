@@ -194,6 +194,7 @@ Subcommands:
   comments <cl> [options]          Get PDFium CL review comments
   diff <cl> [options]              Get PDFium CL diff/changes
   file <cl> <path> [options]       Get file content from PDFium CL patchset
+  bots <cl> [options]              Get try-bot status for PDFium CL
 
 Options for comments:
   -p, --patchset <number>          Specific patchset number
@@ -203,11 +204,17 @@ Options for diff:
   -p, --patchset <number>          Specific patchset number
   -f, --file <path>               Specific file path to get diff for
 
+Options for bots:
+  -p, --patchset <number>          Specific patchset number
+  --failed-only                    Show only failed bots
+
 Examples:
   ch pdfium status 130850
   ch pdfium comments 130850 --format json
   ch pdfium diff 130850 --file "fpdfsdk/fpdf_view.cpp"
   ch pdfium file 130850 "fpdfsdk/fpdf_view.cpp" --patchset 9
+  ch pdfium bots 130850 --format json
+  ch pdfium bots 130850 --failed-only --format json
 
 ### 8. issues - Chromium issue operations
 Usage: ch issues <command> [options]
