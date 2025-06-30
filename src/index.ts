@@ -423,6 +423,30 @@ class ChromiumCodeSearchServer {
               required: ["issue_id"],
             },
           },
+          {
+            name: "search_chromium_issues",
+            description: "Search for issues in the Chromium issue tracker with full-text search across titles, descriptions, and metadata",
+            inputSchema: {
+              type: "object",
+              properties: {
+                query: {
+                  type: "string",
+                  description: "Search query for issue titles, descriptions, or metadata (e.g., 'memory leak', 'pkasting', 'security')",
+                },
+                limit: {
+                  type: "number",
+                  description: "Maximum number of results to return (default: 50, max: 100)",
+                  default: 50,
+                },
+                start_index: {
+                  type: "number", 
+                  description: "Starting index for pagination (default: 0)",
+                  default: 0,
+                },
+              },
+              required: ["query"],
+            },
+          },
         ],
       };
     });
@@ -478,6 +502,9 @@ class ChromiumCodeSearchServer {
             break;
           case "get_chromium_issue":
             result = await this.getChromiumIssue(args);
+            break;
+          case "search_chromium_issues":
+            result = await this.searchChromiumIssues(args);
             break;
           default:
             throw new Error(`Unknown tool: ${name}`);
@@ -2196,6 +2223,216 @@ class ChromiumCodeSearchServer {
       }
       
       throw new ChromiumSearchError(`Issue fetch failed: ${error.message}`);
+    }
+  }
+
+  private async searchChromiumIssues(args: any) {
+    const { query, limit = 50, start_index = 0 } = args;
+    
+    this.log('debug', 'Searching Chromium issues', { query, limit, start_index });
+    
+    try {
+      const baseUrl = 'https://issues.chromium.org';
+      const endpoint = '/action/issues/list';
+      
+      // Based on the curl command structure: [null,null,null,null,null,["157"],["pkasting","modified_time desc",50,"start_index:0"]]
+      const searchParams = [query, "modified_time desc", limit];
+      if (start_index > 0) {
+        searchParams.push(`start_index:${start_index}`);
+      }
+      
+      const payload = [
+        null,
+        null,
+        null,
+        null,
+        null,
+        ["157"], // Track ID for Chromium
+        searchParams
+      ];
+      
+      const response = await fetch(`${baseUrl}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Referer': 'https://issues.chromium.org/',
+          'Origin': 'https://issues.chromium.org',
+          'Sec-Fetch-Dest': 'empty',
+          'Sec-Fetch-Mode': 'cors',
+          'Sec-Fetch-Site': 'same-origin',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new ChromiumSearchError(`Failed to search issues: HTTP ${response.status}`);
+      }
+
+      const text = await response.text();
+      this.log('debug', 'Issue search response received', { responseLength: text.length });
+      
+      // Strip the XSSI protection prefix ")]}'\n" if present
+      let cleanText = text;
+      if (text.startsWith(")]}'\n")) {
+        cleanText = text.substring(5);
+      } else if (text.startsWith(")]}'")) {
+        cleanText = text.substring(4);
+      }
+      
+      // Parse the response
+      const data = JSON.parse(cleanText);
+      
+      // Extract issues from the response using the same parsing logic as CLI
+      const issues = this.parseIssueSearchResults(data, query);
+      
+      let resultText = `## Issue Search Results for "${query}"\n\n`;
+      resultText += `📊 **Found:** ${issues.length} issues\n`;
+      if (start_index > 0) {
+        resultText += `📄 **Page:** Starting from index ${start_index}\n`;
+      }
+      resultText += `🔍 **Search URL:** ${baseUrl}/issues?q=${encodeURIComponent(query)}\n\n`;
+      
+      if (issues.length === 0) {
+        resultText += "No issues found matching your search query.\n";
+      } else {
+        issues.forEach((issue, index) => {
+          resultText += `### ${index + 1}. Issue ${issue.issueId}\n`;
+          resultText += `**Title:** ${issue.title || 'Unknown'}\n`;
+          resultText += `**Status:** ${issue.status || 'Unknown'}\n`;
+          if (issue.priority) {
+            resultText += `**Priority:** ${issue.priority}\n`;
+          }
+          if (issue.component) {
+            resultText += `**Component:** ${issue.component}\n`;
+          }
+          if (issue.assignee) {
+            resultText += `**Assignee:** ${issue.assignee}\n`;
+          }
+          if (issue.reporter) {
+            resultText += `**Reporter:** ${issue.reporter}\n`;
+          }
+          if (issue.modified) {
+            resultText += `**Modified:** ${issue.modified}\n`;
+          }
+          resultText += `🔗 **URL:** https://issues.chromium.org/issues/${issue.issueId}\n\n`;
+        });
+        
+        if (issues.length === limit) {
+          resultText += `💡 *More results may be available. Use start_index=${start_index + limit} to get the next page.*\n`;
+        }
+      }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: resultText,
+          },
+        ],
+      };
+      
+    } catch (error: any) {
+      this.log('error', 'Issue search failed', { query, error: error.message });
+      
+      if (error instanceof ChromiumSearchError) {
+        throw error;
+      }
+      
+      throw new ChromiumSearchError(`Issue search failed: ${error.message}`);
+    }
+  }
+  
+  private parseIssueSearchResults(data: any, query: string): any[] {
+    this.log('debug', 'Parsing issue search results', { query });
+    
+    const issues: any[] = [];
+    
+    try {
+      if (data && data[0] && data[0][6] && Array.isArray(data[0][6])) {
+        const issueContainer = data[0][6];
+        
+        for (let i = 0; i < issueContainer.length; i++) {
+          const item = issueContainer[i];
+          
+          if (Array.isArray(item)) {
+            // Check if this is a direct issue array
+            if (item.length > 5 && typeof item[1] === 'number' && item[1] > 1000000) {
+              const issue = this.parseIssueFromProtobufArray(item);
+              if (issue) {
+                issues.push(issue);
+              }
+            }
+            // Check if this contains nested issue arrays
+            else if (item.length > 0) {
+              for (let j = 0; j < item.length; j++) {
+                if (Array.isArray(item[j]) && item[j].length > 5) {
+                  if (typeof item[j][1] === 'number' && item[j][1] > 1000000) {
+                    const issue = this.parseIssueFromProtobufArray(item[j]);
+                    if (issue) {
+                      issues.push(issue);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      this.log('error', 'Error parsing issue search results', { error });
+    }
+    
+    return issues;
+  }
+  
+  private parseIssueFromProtobufArray(arr: any[]): any | null {
+    try {
+      const issue: any = {};
+      
+      // Issue ID is at position 1
+      if (arr[1] && typeof arr[1] === 'number') {
+        issue.issueId = arr[1].toString();
+      }
+      
+      // Try to extract other basic information
+      if (arr.length > 8) {
+        // Status is often at position 8
+        if (typeof arr[8] === 'number') {
+          issue.status = this.getStatusText(arr[8]);
+        }
+        
+        // Priority information might be in an array at position 9
+        if (Array.isArray(arr[9]) && arr[9].length > 0) {
+          if (typeof arr[9][0] === 'number') {
+            issue.priority = this.getPriorityText(arr[9][0]);
+          }
+        }
+      }
+      
+      // Try to find title in nested structures
+      for (let i = 2; i < Math.min(arr.length, 15); i++) {
+        if (Array.isArray(arr[i])) {
+          for (let j = 0; j < arr[i].length; j++) {
+            if (typeof arr[i][j] === 'string' && arr[i][j].length > 10 && !arr[i][j].includes('@')) {
+              if (!issue.title || arr[i][j].length > issue.title.length) {
+                issue.title = arr[i][j];
+              }
+            }
+          }
+        } else if (typeof arr[i] === 'string' && arr[i].length > 10 && !arr[i].includes('@')) {
+          if (!issue.title || arr[i].length > issue.title.length) {
+            issue.title = arr[i];
+          }
+        }
+      }
+      
+      return issue.issueId ? issue : null;
+    } catch (error) {
+      return null;
     }
   }
 

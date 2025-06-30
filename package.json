@@ -1,6 +1,6 @@
 {
   "name": "chromium-codesearch-mcp",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "MCP server for searching Chromium source code via source.chromium.org with advanced Code Search syntax support",
   "type": "module",
   "main": "dist/index.js",
