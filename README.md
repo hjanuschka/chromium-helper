@@ -16,18 +16,25 @@ The ultimate toolkit for exploring Chromium and PDFium source code, offering bot
 
 ## ✨ Quick Start
 
+### Option 1: Use Instantly (No Installation)
 ```bash
-# Install globally
+# Run directly with npx - no installation needed!
+npx chromium-helper search "LOG(INFO)" --limit 5
+npx chromium-helper gerrit status 6624568
+npx chromium-helper pdfium status 130850
+npx chromium-helper issues search "memory leak"
+```
+
+### Option 2: Install Globally
+```bash
+# Install once, use anywhere with short alias
 npm install -g chromium-helper
 
-# Use immediately with short alias
+# Then use with short 'ch' command
 ch search "LOG(INFO)" --limit 5
 ch gerrit status 6624568
 ch pdfium status 130850
 ch issues search "memory leak"
-
-# Or use without installing
-npx chromium-helper search "WebContents" --limit 10
 ```
 
 ## 🎯 Key Features
@@ -79,12 +86,22 @@ For AI systems and Claude Desktop integration - provides the same powerful funct
 
 ## ⚡ Quick Start
 
+### Option 1: Use Instantly (No Installation)
 ```bash
-# Install globally
+# Run directly with npx - no installation needed!
+npx chromium-codesearch-mcp
+
+# Test it works
+echo '{"query": "LOG(INFO)", "limit": 3}' | npx chromium-codesearch-mcp search_chromium_code
+```
+
+### Option 2: Install Globally  
+```bash
+# Install once for faster startup
 npm install -g chromium-codesearch-mcp
 
-# Or use directly 
-npx chromium-codesearch-mcp
+# Then use directly
+chromium-codesearch-mcp
 ```
 
 ## 🎯 MCP Features
