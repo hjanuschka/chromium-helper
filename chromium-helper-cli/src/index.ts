@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { ChromiumAPI } from './api.js';
 import { formatOutput, OutputFormat } from './formatter.js';
 import { loadConfig } from './config.js';
+import { getAIUsageGuide } from './ai-guide.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,7 +33,14 @@ async function main() {
     .version(packageInfo.version)
     .option('-f, --format <type>', 'output format (json|table|plain)', 'plain')
     .option('--no-color', 'disable colored output')
-    .option('--debug', 'enable debug logging');
+    .option('--debug', 'enable debug logging')
+    .option('--ai', 'show comprehensive usage guide for AI systems');
+
+  // Handle --ai flag
+  if (process.argv.includes('--ai')) {
+    console.log(getAIUsageGuide());
+    process.exit(0);
+  }
 
   // Search commands
   program
