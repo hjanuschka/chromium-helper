@@ -1,6 +1,6 @@
 # Chromium Helper CLI
 
-A powerful command-line tool for searching and exploring the Chromium source code using Google's official CodeSearch APIs. Built for developers, AI systems, and shell scripts that need fast, programmatic access to Chromium codebase information.
+A powerful command-line tool for searching and exploring Chromium and PDFium source code using Google's official APIs. Features comprehensive Gerrit integration, issue tracking, and support for both Chromium and PDFium projects.
 
 ## 🚀 Features
 
@@ -30,26 +30,24 @@ npm run build
 npm link  # Optional: Make globally available
 ```
 
-## 🎯 Quick Start
+## 🚀 Quick Start
 
 ```bash
-# Basic code search
-chromium-helper search "LOG(INFO)" --limit 5
+# Install globally
+npm install -g chromium-helper
 
-# Find symbol definitions and usage
-chromium-helper symbol "Browser"
+# Or run with npx (no installation needed)
+npx chromium-helper search "LOG(INFO)" --limit 5
 
-# Get file content with line range
-chromium-helper file "base/logging.h" --start 100 --end 150
+# Use the short alias
+ch search "memory leak" --case-sensitive --format json
 
-# Search with specific filters
-chromium-helper search "WebContents" --language cpp --file-pattern "*.h"
+# Gerrit operations
+ch gerrit status 6624568
+ch pdfium status 130850
 
-# Get results in JSON format
-chromium-helper search "memory leak" --format json
-
-# Show results in table format
-chromium-helper search "virtual destructor" --format table --limit 10
+# Issue tracking
+ch issues search "memory leak" --limit 10
 ```
 
 ## 📖 Commands
@@ -196,10 +194,69 @@ Commands:
 **Examples:**
 ```bash
 # Get CL status
-chromium-helper gerrit status 6624568
+ch gerrit status 6624568
 
 # Get review comments
-chromium-helper gerrit comments 6624568
+ch gerrit comments 6624568 --format json
+
+# Get diff for specific file
+ch gerrit diff 6624568 --file "base/logging.cc"
+
+# Get file content from patchset
+ch gerrit file 6624568 "base/logging.cc" --patchset 3
+```
+
+### `pdfium` - PDFium Gerrit Operations
+Work with PDFium Gerrit code reviews.
+
+```bash
+ch pdfium <command> [options]
+
+# Aliases: pdf
+
+Commands:
+  status <cl>                Get PDFium CL status and test results
+  comments <cl> [options]    Get PDFium CL review comments
+  diff <cl> [options]        Get PDFium CL diff/changes
+  file <cl> <path> [options] Get file content from PDFium CL patchset
+```
+
+**Examples:**
+```bash
+# Get PDFium CL status
+ch pdfium status 130850
+
+# Get PDFium review comments
+ch pdfium comments 130850 --format json
+
+# View PDFium file changes
+ch pdfium diff 130850 --file "fpdfsdk/fpdf_view.cpp"
+
+# Get PDFium file content
+ch pdfium file 130850 "fpdfsdk/fpdf_view.cpp" --patchset 9
+```
+
+### `issues` - Chromium Issue Operations
+Search and view Chromium issues and bugs.
+
+```bash
+ch issues <command> [options]
+
+# Aliases: bugs
+
+Commands:
+  get <id>                   Get specific issue details
+  search <query> [options]   Search for issues
+```
+
+**Examples:**
+```bash
+# Search for issues
+ch issues search "memory leak" --limit 10
+ch issues search "pkasting" --start 20
+
+# Get specific issue details
+ch issues get 1493929
 ```
 
 ### `issue` - Get Chromium Issue Details
