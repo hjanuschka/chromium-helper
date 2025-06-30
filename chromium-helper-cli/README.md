@@ -1,6 +1,8 @@
-<p align="center">
-  <img src="logo.png" alt="Chromium Helper Logo" width="200" height="200">
-</p>
+<div align="center">
+
+![Chromium Helper Logo](logo.png)
+
+</div>
 
 # Chromium Helper CLI
 
