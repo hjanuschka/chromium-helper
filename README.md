@@ -41,6 +41,7 @@ ch issues search "memory leak"
 
 - **🔍 Advanced Code Search** - Search Chromium and PDFium with powerful syntax
 - **🔧 Complete Gerrit Integration** - CL status, comments, diffs, file content  
+- **🤖 Try-Bot Status** - View LUCI try-bot results for CLs
 - **🐛 Issue Tracking** - Search and view Chromium issues
 - **📊 PDFium Support** - Full PDFium Gerrit operations
 - **📝 Commit History** - Search commits, authors, dates
@@ -64,6 +65,7 @@ ch file "base/logging.cc" --lines 100-200
 ch gerrit status 6624568
 ch gerrit comments 6624568 --unresolved-only
 ch gerrit diff 6624568 --file "chrome/browser/ui/browser.cc"
+ch gerrit bots 6624568 --failed-only
 
 # Issue tracking
 ch issues search "memory leak" --limit 20
@@ -72,6 +74,7 @@ ch issues get 422768753
 # PDFium
 ch pdfium status 130850
 ch pdfium diff 130850
+ch pdfium bots 130850
 
 # Commit history & ownership
 ch commits "password manager" --author "chrome-team" --since "2025-06-01"
