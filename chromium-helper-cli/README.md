@@ -2,33 +2,16 @@
 
 A powerful command-line tool for searching and exploring Chromium and PDFium source code using Google's official APIs. Features comprehensive Gerrit integration, issue tracking, and support for both Chromium and PDFium projects.
 
-## 🚀 Features
+## ✨ Features
 
-- **🔍 Fast Code Search**: Search the live Chromium codebase using Google's official search API
-- **🎯 Symbol Lookup**: Find definitions, declarations, and usage examples for functions, classes, and symbols
-- **📄 File Content**: Fetch any file from Chromium source with optional line ranges
-- **⚡ Multiple Output Formats**: Plain text, JSON, and table formats for different use cases
-- **🔧 Shell-Friendly**: Perfect for integration with AI systems, shell scripts, and automation
-- **🌐 Direct Links**: Every result includes clickable URLs to view code in source.chromium.org
-- **⚙️ Configurable**: Support for custom API keys and output preferences
-
-## 📦 Installation
-
-### Option 1: Install from npm (Recommended)
-```bash
-npm install -g chromium-helper
-npx playwright install chromium  # Required for issue extraction
-```
-
-### Option 2: From Source
-```bash
-git clone https://github.com/hjanuschka/chromium-helper-cli.git
-cd chromium-helper-cli
-npm install
-npx playwright install chromium  # Required for issue extraction
-npm run build
-npm link  # Optional: Make globally available
-```
+- **🔍 Advanced Code Search** - Search Chromium and PDFium codebases with powerful syntax
+- **🔧 Complete Gerrit Integration** - View CLs, comments, diffs, and file content for both projects
+- **🐛 Issue Tracking** - Search and view Chromium issues with detailed information
+- **📊 PDFium Support** - Full support for PDFium Gerrit operations and code search
+- **🎨 Multiple Output Formats** - JSON, table, and plain text formats for different use cases
+- **⚡ Fast & Reliable** - Uses official Google APIs for real-time data
+- **🌐 Direct Links** - Every result includes clickable URLs to view code online
+- **🤖 AI-Friendly** - Perfect for integration with AI systems, shell scripts, and automation
 
 ## 🚀 Quick Start
 
@@ -39,15 +22,36 @@ npm install -g chromium-helper
 # Or run with npx (no installation needed)
 npx chromium-helper search "LOG(INFO)" --limit 5
 
-# Use the short alias
+# Use the short alias 'ch'
 ch search "memory leak" --case-sensitive --format json
 
-# Gerrit operations
+# Gerrit operations (Chromium & PDFium)
 ch gerrit status 6624568
 ch pdfium status 130850
 
 # Issue tracking
 ch issues search "memory leak" --limit 10
+```
+
+## 📦 Installation
+
+### Global Installation (Recommended)
+```bash
+npm install -g chromium-helper
+# Now available as 'ch' and 'ch'
+```
+
+### One-time Usage with npx
+```bash
+npx chromium-helper search "Browser::Create" --format json
+```
+
+### From Source
+```bash
+git clone https://github.com/hjanuschka/chromium-codesearch-mcp.git
+cd chromium-codesearch-mcp/ch-cli
+npm install && npm run build
+npm link  # Optional: Make globally available
 ```
 
 ## 📖 Commands
@@ -56,7 +60,7 @@ ch issues search "memory leak" --limit 10
 Search for code patterns in the Chromium codebase.
 
 ```bash
-chromium-helper search <query> [options]
+ch search <query> [options]
 
 # Aliases: s
 
@@ -72,26 +76,26 @@ Options:
 **Examples:**
 ```bash
 # Basic text search
-chromium-helper search "LOG(INFO)"
+ch search "LOG(INFO)"
 
 # Function search
-chromium-helper search "CreateWindow" --type function
+ch search "CreateWindow" --type function
 
-# Class search in C++ headers
-chromium-helper search "Browser" --type class --file-pattern "*.h"
+# Class search in C++ headers  
+ch search "Browser" --type class --file-pattern "*.h"
 
 # Search excluding comments
-chromium-helper search "TODO" --exclude-comments
+ch search "TODO" --exclude-comments
 
 # Language-specific search
-chromium-helper search "addEventListener" --language javascript
+ch search "addEventListener" --language javascript
 ```
 
 ### `symbol` - Find Symbol Definitions and Usage
 Find where symbols (functions, classes, variables) are defined and used.
 
 ```bash
-chromium-helper symbol <symbol> [options]
+ch symbol <symbol> [options]
 
 # Aliases: sym
 
@@ -102,17 +106,17 @@ Options:
 **Examples:**
 ```bash
 # Find Browser symbol
-chromium-helper symbol "Browser"
+ch symbol "Browser"
 
 # Find with file context
-chromium-helper symbol "CreateWindow" --file "chrome/browser/ui/browser.cc"
+ch symbol "CreateWindow" --file "chrome/browser/ui/browser.cc"
 ```
 
 ### `file` - Get File Content
 Fetch the content of any file from Chromium source.
 
 ```bash
-chromium-helper file <path> [options]
+ch file <path> [options]
 
 # Aliases: f
 
@@ -124,20 +128,20 @@ Options:
 **Examples:**
 ```bash
 # Get entire file
-chromium-helper file "base/logging.h"
+ch file "base/logging.h"
 
 # Get specific line range
-chromium-helper file "chrome/browser/ui/browser.h" --start 100 --end 200
+ch file "chrome/browser/ui/browser.h" --start 100 --end 200
 
 # Get from line 50 to end
-chromium-helper file "content/browser/browser_context.h" --start 50
+ch file "content/browser/browser_context.h" --start 50
 ```
 
 ### `owners` - Find OWNERS Files
 Find OWNERS files for a given file path to identify code reviewers.
 
 ```bash
-chromium-helper owners <path>
+ch owners <path>
 
 # Aliases: own
 ```
@@ -145,17 +149,17 @@ chromium-helper owners <path>
 **Examples:**
 ```bash
 # Find owners for a specific file
-chromium-helper owners "chrome/browser/ui/browser.cc"
+ch owners "chrome/browser/ui/browser.cc"
 
 # Find owners for a directory
-chromium-helper owners "third_party/blink/renderer/"
+ch owners "third_party/blink/renderer/"
 ```
 
 ### `commits` - Search Commit History
 Search commit messages and metadata in the Chromium repository.
 
 ```bash
-chromium-helper commits <query> [options]
+ch commits <query> [options]
 
 # Aliases: cm
 
@@ -169,20 +173,20 @@ Options:
 **Examples:**
 ```bash
 # Search commit messages
-chromium-helper commits "password manager"
+ch commits "password manager"
 
 # Search by author
-chromium-helper commits "security fix" --author "chrome-security"
+ch commits "security fix" --author "chrome-security"
 
 # Search in date range
-chromium-helper commits "memory leak" --since "2023-01-01" --until "2023-12-31"
+ch commits "memory leak" --since "2023-01-01" --until "2023-12-31"
 ```
 
 ### `gerrit` - Gerrit Code Review Operations
 Work with Chromium Gerrit code reviews.
 
 ```bash
-chromium-helper gerrit <command> [options]
+ch gerrit <command> [options]
 
 # Aliases: gr
 
@@ -263,7 +267,7 @@ ch issues get 1493929
 Get information about Chromium bugs and feature requests.
 
 ```bash
-chromium-helper issue <id>
+ch issue <id>
 
 # Aliases: bug
 ```
@@ -271,10 +275,10 @@ chromium-helper issue <id>
 **Examples:**
 ```bash
 # Get issue details
-chromium-helper issue 422768753
+ch issue 422768753
 
 # Using full URL
-chromium-helper issue "https://issues.chromium.org/issues/422768753"
+ch issue "https://issues.chromium.org/issues/422768753"
 ```
 
 ## 🎨 Output Formats
@@ -283,19 +287,19 @@ Control output format with the global `--format` option:
 
 ### Plain Text (Default)
 ```bash
-chromium-helper search "LOG(INFO)" --format plain
+ch search "LOG(INFO)" --format plain
 ```
 Human-readable format with colors and formatting.
 
 ### JSON
 ```bash
-chromium-helper search "LOG(INFO)" --format json
+ch search "LOG(INFO)" --format json
 ```
 Structured JSON for programmatic processing and AI systems.
 
 ### Table
 ```bash
-chromium-helper search "LOG(INFO)" --format table
+ch search "LOG(INFO)" --format table
 ```
 Tabular format for easy reading and comparison.
 
@@ -311,7 +315,7 @@ export NO_COLOR=1
 ```
 
 ### Config File
-Create `~/.chromium-helper.json` or `.chromium-helper.json` in your project:
+Create `~/.ch.json` or `.ch.json` in your project:
 
 ```json
 {
@@ -324,10 +328,10 @@ Create `~/.chromium-helper.json` or `.chromium-helper.json` in your project:
 ### Configuration Commands
 ```bash
 # Show current configuration
-chromium-helper config --show
+ch config --show
 
 # Set API key (future feature)
-chromium-helper config --set-api-key "your_key"
+ch config --set-api-key "your_key"
 ```
 
 ## 🤖 AI and Shell Script Integration
@@ -338,16 +342,16 @@ Perfect for AI systems and shell scripts:
 #!/bin/bash
 
 # Search for security-related code
-RESULTS=$(chromium-helper search "crypto" --language cpp --format json --limit 10)
+RESULTS=$(ch search "crypto" --language cpp --format json --limit 10)
 
 # Process results with jq
 echo "$RESULTS" | jq '.[] | select(.file | contains("security")) | .url'
 
 # Find all Browser class definitions
-chromium-helper symbol "Browser" --format json | jq '.classResults[].url'
+ch symbol "Browser" --format json | jq '.classResults[].url'
 
 # Get file content for analysis
-chromium-helper file "base/security/security_context.h" --format json | \
+ch file "base/security/security_context.h" --format json | \
   jq -r '.content' | head -20
 ```
 
@@ -378,31 +382,31 @@ The tool supports Google CodeSearch syntax:
 
 ```bash
 # Search specific function definitions
-chromium-helper search "function:CreateWindow"
+ch search "function:CreateWindow"
 
 # Search class definitions
-chromium-helper search "class:Browser"
+ch search "class:Browser"
 
 # Search symbols (excludes comments/strings)
-chromium-helper search "symbol:WebContents"
+ch search "symbol:WebContents"
 
 # Case-sensitive search
-chromium-helper search "case:yes LOG"
+ch search "case:yes LOG"
 
 # Language and file filters
-chromium-helper search "lang:cpp file:*.h virtual"
+ch search "lang:cpp file:*.h virtual"
 ```
 
 ### Complex Queries
 ```bash
 # Find all virtual destructors in headers
-chromium-helper search "virtual ~" --file-pattern "*.h" --language cpp
+ch search "virtual ~" --file-pattern "*.h" --language cpp
 
 # Search for TODO comments in browser code
-chromium-helper search "TODO" --type comment --file-pattern "chrome/browser/*"
+ch search "TODO" --type comment --file-pattern "chrome/browser/*"
 
 # Find memory management patterns
-chromium-helper search "std::unique_ptr" --language cpp --exclude-comments
+ch search "std::unique_ptr" --language cpp --exclude-comments
 ```
 
 ## 🚀 Performance Tips
@@ -417,8 +421,8 @@ chromium-helper search "std::unique_ptr" --language cpp --exclude-comments
 
 ```bash
 # Clone and setup
-git clone https://github.com/hjanuschka/chromium-helper-cli.git
-cd chromium-helper-cli
+git clone https://github.com/hjanuschka/ch-cli.git
+cd ch-cli
 npm install
 
 # Development with watch mode
@@ -452,8 +456,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 📞 Support
 
-- [GitHub Issues](https://github.com/hjanuschka/chromium-helper-cli/issues) - Bug reports and feature requests
-- [GitHub Discussions](https://github.com/hjanuschka/chromium-helper-cli/discussions) - Questions and community
+- [GitHub Issues](https://github.com/hjanuschka/ch-cli/issues) - Bug reports and feature requests
+- [GitHub Discussions](https://github.com/hjanuschka/ch-cli/discussions) - Questions and community
 
 ---
 
