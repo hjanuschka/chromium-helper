@@ -459,6 +459,276 @@ export class ChromiumAPI {
     }
   }
 
+  async getGerritCLTrybotStatus(params: { clNumber: string; patchset?: number; failedOnly?: boolean }): Promise<any> {
+    const clId = this.extractCLNumber(params.clNumber);
+    
+    try {
+      // Get CL messages to find LUCI Change Verifier URLs
+      const messagesUrl = `https://chromium-review.googlesource.com/changes/${clId}/messages`;
+      const response = await fetch(messagesUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch messages: ${response.status}`);
+      }
+      
+      const text = await response.text();
+      const jsonText = text.replace(/^\)\]\}'\n/, '');
+      const messages = JSON.parse(jsonText);
+      
+      // Find LUCI Change Verifier URLs from messages
+      const luciUrls = this.extractLuciVerifierUrls(messages, params.patchset);
+      
+      if (luciUrls.length === 0) {
+        return {
+          clId,
+          patchset: params.patchset || 'latest',
+          totalBots: 0,
+          failedBots: 0,
+          passedBots: 0,
+          runningBots: 0,
+          bots: [],
+          message: 'No LUCI runs found for this CL'
+        };
+      }
+      
+      // Get detailed bot status from the most recent LUCI run
+      const latestLuciUrl = luciUrls[0];
+      const detailedBots = await this.fetchLuciRunDetails(latestLuciUrl.url);
+      
+      // Filter by failed only if requested
+      const filteredBots = params.failedOnly 
+        ? detailedBots.filter(bot => bot.status === 'FAILED')
+        : detailedBots;
+      
+      return {
+        clId,
+        patchset: latestLuciUrl.patchset,
+        runId: latestLuciUrl.runId,
+        luciUrl: latestLuciUrl.url,
+        totalBots: detailedBots.length,
+        failedBots: detailedBots.filter(bot => bot.status === 'FAILED').length,
+        passedBots: detailedBots.filter(bot => bot.status === 'PASSED').length,
+        runningBots: detailedBots.filter(bot => bot.status === 'RUNNING').length,
+        canceledBots: detailedBots.filter(bot => bot.status === 'CANCELED').length,
+        bots: filteredBots,
+        timestamp: latestLuciUrl.timestamp
+      };
+      
+    } catch (error: any) {
+      throw new GerritAPIError(`Failed to get trybot status: ${error.message}`, undefined, error);
+    }
+  }
+
+  private extractLuciVerifierUrls(messages: any[], targetPatchset?: number): Array<{
+    url: string;
+    runId: string;
+    patchset: number;
+    timestamp: string;
+  }> {
+    const luciUrls: Array<{ url: string; runId: string; patchset: number; timestamp: string }> = [];
+    
+    for (const msg of messages) {
+      // Skip if we want a specific patchset and this message is for a different one
+      if (targetPatchset && msg._revision_number && msg._revision_number !== targetPatchset) {
+        continue;
+      }
+      
+      // Look for LUCI Change Verifier URLs in messages
+      if (msg.message) {
+        const luciMatch = msg.message.match(/Follow status at: (https:\/\/luci-change-verifier\.appspot\.com\/ui\/run\/chromium\/([^\/\s]+))/);
+        if (luciMatch) {
+          luciUrls.push({
+            url: luciMatch[1],
+            runId: luciMatch[2],
+            patchset: msg._revision_number || 0,
+            timestamp: msg.date
+          });
+        }
+      }
+    }
+    
+    // Return most recent first
+    return luciUrls.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }
+  
+  private async fetchLuciRunDetails(luciUrl: string): Promise<any[]> {
+    try {
+      // Extract run ID from URL
+      const runIdMatch = luciUrl.match(/chromium\/([^\/\s]+)/);
+      if (!runIdMatch) {
+        throw new Error('Could not extract run ID from LUCI URL');
+      }
+      
+      const runId = runIdMatch[1];
+      
+      // Fetch the LUCI page HTML directly
+      const response = await fetch(luciUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch LUCI page: ${response.status}`);
+      }
+      
+      const html = await response.text();
+      this.debug(`[DEBUG] Fetched LUCI HTML, length: ${html.length}`);
+      
+      // Parse the HTML to extract bot information
+      const bots = this.parseLuciHtmlImproved(html, luciUrl, runId);
+      
+      this.debug(`[DEBUG] Found ${bots.length} bots from LUCI page`);
+      
+      if (bots.length > 0) {
+        return bots;
+      }
+      
+      // Fallback if parsing fails
+      return [{
+        name: 'LUCI Run',
+        status: 'UNKNOWN',
+        runId: runId,
+        luciUrl: luciUrl,
+        summary: 'Could not parse bot details - view at LUCI URL'
+      }];
+      
+    } catch (error) {
+      this.debug(`[DEBUG] Failed to fetch LUCI details: ${error}`);
+      
+      // Fallback to basic info if we can't fetch details
+      return [{
+        name: 'LUCI Run', 
+        status: 'UNKNOWN',
+        luciUrl: luciUrl,
+        summary: 'View detailed bot status at LUCI URL'
+      }];
+    }
+  }
+
+  private parseLuciHtmlImproved(html: string, luciUrl: string, runId: string): any[] {
+    const bots: any[] = [];
+    const foundBots = new Set<string>();
+    
+    try {
+      // Look for the specific pattern you mentioned: chrome/try/bot-name
+      const chromeTryPattern = /chrome\/try\/([a-zA-Z0-9_-]+)/g;
+      let match;
+      
+      while ((match = chromeTryPattern.exec(html)) !== null) {
+        const botName = match[1];
+        if (botName && botName.length > 3 && !foundBots.has(botName)) {
+          foundBots.add(botName);
+          
+          // Look for status indicators around this bot
+          const contextStart = Math.max(0, match.index - 500);
+          const contextEnd = Math.min(html.length, match.index + 500);
+          const context = html.slice(contextStart, contextEnd);
+          
+          let status = 'UNKNOWN';
+          
+          // Look for various status patterns in the surrounding context
+          if (this.checkForStatus(context, 'SUCCESS', 'PASSED', 'success')) {
+            status = 'PASSED';
+          } else if (this.checkForStatus(context, 'FAILURE', 'FAILED', 'failure', 'error')) {
+            status = 'FAILED';
+          } else if (this.checkForStatus(context, 'RUNNING', 'STARTED', 'running', 'pending')) {
+            status = 'RUNNING';
+          } else if (this.checkForStatus(context, 'CANCELED', 'CANCELLED', 'canceled')) {
+            status = 'CANCELED';
+          }
+          
+          // Also check for CSS class patterns that indicate status
+          if (status === 'UNKNOWN') {
+            if (context.includes('class="green"') || context.includes('color:green') || 
+                context.includes('background-color:green') || context.includes('rgb(76, 175, 80)')) {
+              status = 'PASSED';
+            } else if (context.includes('class="red"') || context.includes('color:red') || 
+                       context.includes('background-color:red') || context.includes('rgb(244, 67, 54)')) {
+              status = 'FAILED';
+            } else if (context.includes('class="yellow"') || context.includes('color:orange') ||
+                       context.includes('background-color:yellow') || context.includes('rgb(255, 193, 7)')) {
+              status = 'RUNNING';
+            }
+          }
+          
+          bots.push({
+            name: botName,
+            status: status,
+            luciUrl: luciUrl,
+            runId: runId,
+            summary: `${status.toLowerCase()}`
+          });
+        }
+      }
+      
+      // If we didn't find many bots with chrome/try/ pattern, try other patterns
+      if (bots.length < 10) {
+        // Look for standard Chromium bot naming patterns
+        const standardBotPattern = /(?:android|chromeos|linux|mac|win|ios)[-_]?(?:compile|test|rel|dbg|asan|msan|tsan|gpu|arm64|x64|x86)[-_]?[a-zA-Z0-9_-]*/gi;
+        let match;
+        
+        while ((match = standardBotPattern.exec(html)) !== null && bots.length < 50) {
+          const botName = match[0];
+          if (botName.length > 8 && !foundBots.has(botName)) {
+            foundBots.add(botName);
+            
+            // Get context around this bot name
+            const contextStart = Math.max(0, match.index - 300);
+            const contextEnd = Math.min(html.length, match.index + 300);
+            const context = html.slice(contextStart, contextEnd);
+            
+            let status = 'UNKNOWN';
+            
+            if (this.checkForStatus(context, 'SUCCESS', 'PASSED', 'success')) {
+              status = 'PASSED';
+            } else if (this.checkForStatus(context, 'FAILURE', 'FAILED', 'failure', 'error')) {
+              status = 'FAILED';
+            } else if (this.checkForStatus(context, 'RUNNING', 'STARTED', 'running')) {
+              status = 'RUNNING';
+            } else if (this.checkForStatus(context, 'CANCELED', 'CANCELLED', 'canceled')) {
+              status = 'CANCELED';
+            }
+            
+            bots.push({
+              name: botName,
+              status: status,
+              luciUrl: luciUrl,
+              runId: runId,
+              summary: `${status.toLowerCase()}`
+            });
+          }
+        }
+      }
+      
+      this.debug(`[DEBUG] Parsed ${bots.length} bots from HTML`);
+      this.debug(`[DEBUG] Status breakdown: ${JSON.stringify(this.getStatusCounts(bots))}`);
+      
+    } catch (error) {
+      this.debug(`[DEBUG] Error parsing LUCI HTML: ${error}`);
+    }
+    
+    return bots;
+  }
+  
+  private checkForStatus(context: string, ...statusWords: string[]): boolean {
+    const lowerContext = context.toLowerCase();
+    return statusWords.some(word => lowerContext.includes(word.toLowerCase()));
+  }
+  
+  private getStatusCounts(bots: any[]): { [key: string]: number } {
+    const counts: { [key: string]: number } = {};
+    bots.forEach(bot => {
+      counts[bot.status] = (counts[bot.status] || 0) + 1;
+    });
+    return counts;
+  }
+
   async findOwners(filePath: string): Promise<{
     filePath: string;
     ownerFiles: Array<{

@@ -140,6 +140,7 @@ Subcommands:
   comments <cl> [options]           Get CL review comments
   diff <cl> [options]              Get CL diff/changes
   file <cl> <path> [options]       Get file content from CL patchset
+  bots <cl> [options]              Get try-bot status for CL
 
 Options for comments:
   -p, --patchset <number>          Specific patchset number
@@ -149,11 +150,40 @@ Options for diff:
   -p, --patchset <number>          Specific patchset number
   -f, --file <path>               Specific file path to get diff for
 
+Options for bots:
+  -p, --patchset <number>          Specific patchset number
+  --failed-only                    Show only failed bots
+
 Examples:
   ch gerrit status 6624568 --format json
   ch gerrit comments 6624568 --format json
   ch gerrit diff 6624568 --file "base/logging.cc"
   ch gerrit file 6624568 "base/logging.cc" --patchset 3
+  ch gerrit bots 6624568 --format json
+  ch gerrit bots 5515135 --failed-only --format json
+
+JSON Output Format for bots:
+{
+  "clId": "6624568",
+  "patchset": 2,
+  "runId": "8873420370854-1-4e0066468e986b0a",
+  "luciUrl": "https://luci-change-verifier.appspot.com/ui/run/chromium/8873420370854-1-4e0066468e986b0a",
+  "totalBots": 12,
+  "failedBots": 0,
+  "passedBots": 12,
+  "runningBots": 0,
+  "canceledBots": 0,
+  "bots": [
+    {
+      "name": "linux-chromeos-compile-chrome",
+      "status": "PASSED",
+      "luciUrl": "https://luci-change-verifier.appspot.com/ui/run/chromium/8873420370854-1-4e0066468e986b0a",
+      "runId": "8873420370854-1-4e0066468e986b0a",
+      "summary": "passed"
+    }
+  ],
+  "timestamp": "2024-06-30T10:30:00.000Z"
+}
 
 ### 7. pdfium - PDFium Gerrit operations
 Usage: ch pdfium <command> [options]
@@ -259,8 +289,16 @@ Note: This is a legacy command. Use 'ch issues get <id>' instead.
 1. Search for related issues: \`ch issues search "memory leak" --format json\`
 2. Get specific issue details: \`ch issues get 12345 --format json\`
 3. Review related CLs: \`ch gerrit status 6624568 --format json\`
-4. Search for similar code patterns: \`ch search "error message" --format json\`
-5. Check commit history: \`ch commits "bug keyword" --format json\`
+4. Check CL try-bot status: \`ch gerrit bots 6624568 --format json\`
+5. Search for similar code patterns: \`ch search "error message" --format json\`
+6. Check commit history: \`ch commits "bug keyword" --format json\`
+
+### CL Review Workflow
+1. Get CL status: \`ch gerrit status 6624568 --format json\`
+2. Check try-bot results: \`ch gerrit bots 6624568 --format json\`
+3. Focus on failures: \`ch gerrit bots 6624568 --failed-only --format json\`
+4. Review code changes: \`ch gerrit diff 6624568 --format json\`
+5. Check review comments: \`ch gerrit comments 6624568 --format json\`
 
 ### Shell Integration Examples
 \`\`\`bash
@@ -278,6 +316,15 @@ ch issues search "memory" --format json | jq '.issues[] | select(.priority == "P
 
 # Get all issue URLs for a specific search
 ch issues search "webrtc" --format json | jq '.issues[].browserUrl'
+
+# Get only failed bot names from a CL
+ch gerrit bots 5515135 --failed-only --format json | jq '.bots[].name'
+
+# Count bots by status for a CL
+ch gerrit bots 6624568 --format json | jq '{passed: .passedBots, failed: .failedBots, running: .runningBots}'
+
+# Check if all bots passed for a CL
+ch gerrit bots 6624568 --format json | jq '.failedBots == 0 and .runningBots == 0'
 \`\`\`
 
 ### Error Handling
