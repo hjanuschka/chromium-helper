@@ -5,6 +5,7 @@ import { ChromiumAPI } from './api.js';
 import { formatOutput, OutputFormat } from './formatter.js';
 import { loadConfig } from './config.js';
 import { getAIUsageGuide } from './ai-guide.js';
+import { startAgent } from './agent/index.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -533,6 +534,20 @@ async function main() {
       } else if (options.show) {
         console.log('Current configuration:');
         console.log(`API Key: ${config.apiKey ? '***set***' : 'not set'}`);
+      }
+    });
+
+  // Agent command
+  program
+    .command('agent')
+    .alias('ag')
+    .description('Start the autonomous LLM Chromium security researcher')
+    .action(async () => {
+      try {
+        await startAgent();
+      } catch (error) {
+        console.error('Agent failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
       }
     });
 
