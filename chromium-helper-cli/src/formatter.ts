@@ -40,6 +40,8 @@ function formatAsTable(data: any, context: string): string {
       return formatIssueTable(data);
     case 'issue-search':
       return formatIssueSearchTable(data);
+    case 'list-folder':
+      return formatListFolderTable(data);
     default:
       return JSON.stringify(data, null, 2);
   }
@@ -69,6 +71,8 @@ function formatAsPlain(data: any, context: string): string {
       return formatIssuePlain(data);
     case 'issue-search':
       return formatIssueSearchPlain(data);
+    case 'list-folder':
+      return formatListFolderPlain(data);
     default:
       return JSON.stringify(data, null, 2);
   }
@@ -824,4 +828,89 @@ function getStatusIcon(status: string): string {
     case 'UNKNOWN': return '❓';
     default: return '⚪';
   }
+}
+
+function formatListFolderTable(data: any): string {
+  if (!data || !data.items || data.items.length === 0) {
+    return chalk.yellow('No items found in folder');
+  }
+
+  const tableData = [
+    ['Type', 'Name']
+  ];
+
+  data.items.forEach((item: any) => {
+    const icon = item.type === 'folder' ? '📁' : '📄';
+    const name = item.type === 'folder' ? `${item.name}/` : item.name;
+    tableData.push([icon, name]);
+  });
+
+  return `${chalk.bold(`📁 ${data.path}`)}\n\n` +
+         `Folders: ${data.folders} | Files: ${data.files} | Total: ${data.totalItems}\n\n` +
+         table(tableData, {
+           border: {
+             topBody: '─',
+             topJoin: '┬',
+             topLeft: '┌',
+             topRight: '┐',
+             bottomBody: '─',
+             bottomJoin: '┴',
+             bottomLeft: '└',
+             bottomRight: '┘',
+             bodyLeft: '│',
+             bodyRight: '│',
+             bodyJoin: '│',
+             joinBody: '─',
+             joinLeft: '├',
+             joinRight: '┤',
+             joinJoin: '┼'
+           }
+         }) +
+         `\n${chalk.blue(`🔗 ${data.browserUrl}`)}`;
+}
+
+function formatListFolderPlain(data: any): string {
+  if (!data || !data.items || data.items.length === 0) {
+    return chalk.yellow('No items found in folder');
+  }
+
+  let output = chalk.bold(`📁 ${data.path}\n\n`);
+  output += `📊 Summary: ${data.folders} folders, ${data.files} files (${data.totalItems} total)\n`;
+  
+  if (data.source) {
+    output += chalk.yellow(`📌 Source: ${data.source}\n`);
+  }
+  
+  output += '\n';
+
+  // Separate folders and files
+  const folders = data.items.filter((item: any) => item.type === 'folder');
+  const files = data.items.filter((item: any) => item.type === 'file');
+
+  if (folders.length > 0) {
+    output += chalk.bold('📁 Folders:\n');
+    folders.forEach((folder: any) => {
+      output += `  ${folder.name}/\n`;
+    });
+    if (files.length > 0) output += '\n';
+  }
+
+  if (files.length > 0) {
+    output += chalk.bold('📄 Files:\n');
+    files.forEach((file: any) => {
+      output += `  ${file.name}\n`;
+    });
+  }
+
+  output += '\n' + chalk.blue(`🔗 ${data.browserUrl}\n`);
+  
+  if (data.githubUrl) {
+    output += chalk.blue(`🔗 GitHub: ${data.githubUrl}\n`);
+  }
+  
+  if (data.webrtcUrl) {
+    output += chalk.blue(`🔗 WebRTC: ${data.webrtcUrl}\n`);
+  }
+  
+  return output;
 }

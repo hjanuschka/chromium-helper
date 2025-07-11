@@ -520,6 +520,26 @@ async function main() {
       }
     });
 
+  // List folder command
+  program
+    .command('list-folder')
+    .alias('ls')
+    .description('List files and folders in a Chromium source directory')
+    .argument('<path>', 'folder path in Chromium source')
+    .action(async (folderPath) => {
+      try {
+        const globalOptions = program.opts();
+        api.setDebugMode(globalOptions.debug);
+        
+        const results = await api.listFolder(folderPath);
+        const format = program.opts().format as OutputFormat;
+        console.log(formatOutput(results, format, 'list-folder'));
+      } catch (error) {
+        console.error('Folder listing failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
   // Config command
   program
     .command('config')

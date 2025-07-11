@@ -493,6 +493,20 @@ class ChromiumCodeSearchServer {
               required: ["query"],
             },
           },
+          {
+            name: "list_chromium_folder",
+            description: "List files and folders in a specific directory of the Chromium source tree",
+            inputSchema: {
+              type: "object",
+              properties: {
+                folder_path: {
+                  type: "string",
+                  description: "Path to the folder in Chromium source (e.g., 'third_party/blink/renderer/core/style')",
+                },
+              },
+              required: ["folder_path"],
+            },
+          },
         ],
       };
     });
@@ -557,6 +571,9 @@ class ChromiumCodeSearchServer {
             break;
           case "search_chromium_issues":
             result = await this.searchChromiumIssues(args);
+            break;
+          case "list_chromium_folder":
+            result = await this.listChromiumFolder(args);
             break;
           default:
             throw new Error(`Unknown tool: ${name}`);
@@ -2824,6 +2841,352 @@ class ChromiumCodeSearchServer {
     // Escape regex special characters for literal search
     // Based on discovery that parentheses need escaping: LOG(INFO) -> LOG\\(INFO\\)
     return query.replace(/[.*+?^${}()|[\]\\]/g, '\\\\$&');
+  }
+
+  private async listChromiumFolder(args: any) {
+    const { folder_path } = args;
+    
+    try {
+      // Normalize folder path - remove leading/trailing slashes
+      let normalizedPath = folder_path.replace(/^\/+|\/+$/g, '');
+      
+      // Use Gitiles API to get directory listing
+      const gitilesUrl = `https://chromium.googlesource.com/chromium/src/+/main/${normalizedPath}/?format=JSON`;
+      const browserUrl = `https://source.chromium.org/chromium/chromium/src/+/main:${normalizedPath}/`;
+      
+      this.log('debug', 'Fetching folder listing from Gitiles', { folder_path: normalizedPath, url: gitilesUrl });
+      
+      // Try to fetch the directory listing from Gitiles
+      const response = await fetch(gitilesUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+      });
+      
+      if (!response.ok) {
+        // Check if this might be a path inside a submodule
+        const knownSubmodules = ['v8', 'third_party/webrtc', 'third_party/devtools-frontend'];
+        const isSubmodulePath = knownSubmodules.some(submodule => 
+          normalizedPath.startsWith(submodule + '/') || normalizedPath === submodule
+        );
+        
+        if (response.status === 404 && isSubmodulePath) {
+          const submodule = knownSubmodules.find(sm => normalizedPath.startsWith(sm));
+          
+          let resultText = `## Cannot List Submodule Path: ${normalizedPath}\n\n`;
+          resultText += `⚠️ **This path is inside the "${submodule}" Git submodule**\n\n`;
+          resultText += `### Why this doesn't work:\n`;
+          resultText += `- "${submodule}" is a separate Git repository included as a submodule\n`;
+          resultText += `- The Gitiles API for the main Chromium repo cannot access submodule contents\n`;
+          resultText += `- Only the submodule reference itself is visible, not its internal structure\n\n`;
+          resultText += `### What you can do:\n`;
+          resultText += `1. Browse the path in the source browser: ${browserUrl}\n`;
+          resultText += `2. Use the search functionality to find files in this area\n`;
+          resultText += `3. Access the submodule's repository directly\n\n`;
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: resultText,
+              },
+            ],
+          };
+        }
+        
+        throw new ChromiumSearchError(`Failed to fetch folder listing: HTTP ${response.status}`);
+      }
+      
+      const responseText = await response.text();
+      // Remove XSSI prefix
+      const jsonText = responseText.replace(/^\)]}'/, '');
+      const data = JSON.parse(jsonText);
+      
+      // Check if this is a submodule (like v8)
+      if (data.url && data.revision && !data.entries) {
+        // This is a submodule - try to fetch from the submodule's repository
+        return await this.listSubmoduleFolder(normalizedPath, data);
+      }
+      
+      // Parse the Gitiles response to extract file/folder names
+      const items = this.parseGitilesListing(data);
+      
+      // Format the results
+      let resultText = `## Folder Contents: ${normalizedPath}\n\n`;
+      resultText += `📁 **Path:** ${normalizedPath}\n`;
+      resultText += `🔗 **Browser URL:** ${browserUrl}\n\n`;
+      
+      if (items.length === 0) {
+        resultText += `### ❌ No items found\n\nThis could mean:\n`;
+        resultText += `- The folder doesn't exist\n`;
+        resultText += `- The path is incorrect\n`;
+        resultText += `- The folder is empty\n`;
+      } else {
+        // Separate folders and files
+        const folders = items.filter(item => item.type === 'folder');
+        const files = items.filter(item => item.type === 'file');
+        
+        resultText += `### 📊 Summary\n`;
+        resultText += `- **Folders:** ${folders.length}\n`;
+        resultText += `- **Files:** ${files.length}\n`;
+        resultText += `- **Total:** ${items.length}\n\n`;
+        
+        if (folders.length > 0) {
+          resultText += `### 📁 Folders (${folders.length})\n`;
+          folders.forEach(folder => {
+            resultText += `- ${folder.name}/\n`;
+          });
+          resultText += `\n`;
+        }
+        
+        if (files.length > 0) {
+          resultText += `### 📄 Files (${files.length})\n`;
+          files.forEach(file => {
+            resultText += `- ${file.name}\n`;
+          });
+        }
+      }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: resultText,
+          },
+        ],
+      };
+      
+    } catch (error: any) {
+      this.log('error', 'Failed to list folder contents', { folder_path, error: error.message });
+      
+      const browserUrl = `https://source.chromium.org/chromium/chromium/src/+/main:${folder_path}/`;
+      return {
+        content: [
+          {
+            type: "text",
+            text: `❌ **Error listing folder:** ${error.message}\n\n**Folder:** ${folder_path}\n**Browser URL:** ${browserUrl}\n\nUse the URL above to view the folder in your browser.`,
+          },
+        ],
+      };
+    }
+  }
+  
+  private async listSubmoduleFolder(originalPath: string, submoduleData: any) {
+    const { url, revision } = submoduleData;
+    
+    // Handle V8 via GitHub API
+    if (url.includes('v8/v8')) {
+      return await this.listV8FolderViaGitHub(originalPath);
+    }
+    
+    // Handle WebRTC via its Gitiles
+    if (url.includes('webrtc')) {
+      return await this.listWebRTCFolderViaGitiles(originalPath);
+    }
+    
+    // For other submodules, return informative message
+    let resultText = `## Submodule: ${originalPath}\n\n`;
+    resultText += `⚠️ **This is a Git submodule pointing to another repository**\n\n`;
+    resultText += `📦 **Repository:** ${url}\n`;
+    resultText += `📌 **Revision:** ${revision}\n\n`;
+    resultText += `🔗 **Browser URL:** https://source.chromium.org/chromium/chromium/src/+/main:${originalPath}/\n\n`;
+    resultText += `### Note\n`;
+    resultText += `This submodule doesn't have automatic folder listing support yet.\n`;
+    resultText += `You can browse it using the source browser URL above.\n`;
+    
+    return {
+      content: [
+        {
+          type: "text",
+          text: resultText,
+        },
+      ],
+    };
+  }
+  
+  private async listV8FolderViaGitHub(path: string) {
+    try {
+      // Remove 'v8/' prefix if present
+      const v8Path = path.startsWith('v8/') ? path.substring(3) : path;
+      
+      // Use GitHub API to list contents
+      const githubApiUrl = `https://api.github.com/repos/v8/v8/contents/${v8Path}`;
+      
+      this.log('debug', 'Fetching V8 folder from GitHub', { path: v8Path, url: githubApiUrl });
+      
+      const response = await fetch(githubApiUrl, {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'chromium-codesearch-mcp',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new ChromiumSearchError(`Failed to fetch V8 folder from GitHub: HTTP ${response.status}`);
+      }
+      
+      const items = await response.json() as any[];
+      
+      // Convert GitHub API response to our format
+      const formattedItems = items.map((item: any) => ({
+        name: item.name,
+        type: item.type === 'dir' ? 'folder' : 'file'
+      }));
+      
+      // Sort items: folders first, then files, alphabetically
+      formattedItems.sort((a: any, b: any) => {
+        if (a.type !== b.type) {
+          return a.type === 'folder' ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+      
+      // Format the results
+      const folders = formattedItems.filter((item: any) => item.type === 'folder');
+      const files = formattedItems.filter((item: any) => item.type === 'file');
+      
+      let resultText = `## V8 Folder Contents: ${path}\n\n`;
+      resultText += `📁 **Path:** ${path}\n`;
+      resultText += `🔗 **GitHub:** https://github.com/v8/v8/tree/main/${v8Path}\n`;
+      resultText += `🔗 **Chromium Browser:** https://source.chromium.org/chromium/chromium/src/+/main:${path}/\n\n`;
+      
+      resultText += `### 📊 Summary\n`;
+      resultText += `- **Folders:** ${folders.length}\n`;
+      resultText += `- **Files:** ${files.length}\n`;
+      resultText += `- **Total:** ${formattedItems.length}\n\n`;
+      
+      if (folders.length > 0) {
+        resultText += `### 📁 Folders (${folders.length})\n`;
+        folders.forEach((folder: any) => {
+          resultText += `- ${folder.name}/\n`;
+        });
+        resultText += `\n`;
+      }
+      
+      if (files.length > 0) {
+        resultText += `### 📄 Files (${files.length})\n`;
+        files.forEach((file: any) => {
+          resultText += `- ${file.name}\n`;
+        });
+      }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: resultText,
+          },
+        ],
+      };
+      
+    } catch (error: any) {
+      this.log('error', 'Failed to fetch V8 folder from GitHub', { path, error: error.message });
+      throw error;
+    }
+  }
+  
+  private async listWebRTCFolderViaGitiles(path: string) {
+    try {
+      // Remove 'third_party/webrtc/' prefix
+      const webrtcPath = path.replace(/^third_party\/webrtc\/?/, '');
+      
+      // Use WebRTC's Gitiles API
+      const gitilesUrl = `https://webrtc.googlesource.com/src/+/main/${webrtcPath}?format=JSON`;
+      
+      this.log('debug', 'Fetching WebRTC folder from Gitiles', { path: webrtcPath, url: gitilesUrl });
+      
+      const response = await fetch(gitilesUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new ChromiumSearchError(`Failed to fetch WebRTC folder: HTTP ${response.status}`);
+      }
+      
+      const responseText = await response.text();
+      const jsonText = responseText.replace(/^\)]}'/, '');
+      const data = JSON.parse(jsonText);
+      
+      // Parse the Gitiles response
+      const items = this.parseGitilesListing(data);
+      
+      // Format the results
+      const folders = items.filter(item => item.type === 'folder');
+      const files = items.filter(item => item.type === 'file');
+      
+      let resultText = `## WebRTC Folder Contents: ${path}\n\n`;
+      resultText += `📁 **Path:** ${path}\n`;
+      resultText += `🔗 **WebRTC Gitiles:** https://webrtc.googlesource.com/src/+/main/${webrtcPath}\n`;
+      resultText += `🔗 **Chromium Browser:** https://source.chromium.org/chromium/chromium/src/+/main:${path}/\n\n`;
+      
+      resultText += `### 📊 Summary\n`;
+      resultText += `- **Folders:** ${folders.length}\n`;
+      resultText += `- **Files:** ${files.length}\n`;
+      resultText += `- **Total:** ${items.length}\n\n`;
+      
+      if (folders.length > 0) {
+        resultText += `### 📁 Folders (${folders.length})\n`;
+        folders.forEach(folder => {
+          resultText += `- ${folder.name}/\n`;
+        });
+        resultText += `\n`;
+      }
+      
+      if (files.length > 0) {
+        resultText += `### 📄 Files (${files.length})\n`;
+        files.forEach(file => {
+          resultText += `- ${file.name}\n`;
+        });
+      }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: resultText,
+          },
+        ],
+      };
+      
+    } catch (error: any) {
+      this.log('error', 'Failed to fetch WebRTC folder', { path, error: error.message });
+      throw error;
+    }
+  }
+
+  private parseGitilesListing(data: any): Array<{name: string, type: 'file' | 'folder'}> {
+    const items: Array<{name: string, type: 'file' | 'folder'}> = [];
+    
+    try {
+      // Gitiles returns an object with "entries" array
+      if (data && data.entries && Array.isArray(data.entries)) {
+        for (const entry of data.entries) {
+          // Each entry has 'name' and 'type' fields
+          // type can be 'tree' (folder) or 'blob' (file)
+          if (entry.name && entry.type) {
+            items.push({
+              name: entry.name,
+              type: entry.type === 'tree' ? 'folder' : 'file'
+            });
+          }
+        }
+      }
+      
+      // Sort items: folders first, then files, alphabetically
+      items.sort((a, b) => {
+        if (a.type !== b.type) {
+          return a.type === 'folder' ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+      
+    } catch (error) {
+      this.log('error', 'Error parsing Gitiles listing response', { error });
+    }
+    
+    return items;
   }
 
   private async callChromiumSearchAPI(query: string, limit: number): Promise<any> {
