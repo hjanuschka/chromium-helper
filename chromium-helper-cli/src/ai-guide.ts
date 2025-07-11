@@ -82,7 +82,39 @@ JSON Output Format:
   "browserUrl": "https://source.chromium.org/chromium/chromium/src/+/main:base/logging.h;l=100-200"
 }
 
-### 4. owners - Find OWNERS files for a file path
+### 4. list-folder - List files and folders in a Chromium source directory
+Usage: ch list-folder <path>
+Aliases: ls
+
+Examples:
+  ch list-folder "third_party/blink/renderer/core/style" --format json
+  ch list-folder "base" --format json
+  ch list-folder "chrome/browser/ui" --format table
+
+JSON Output Format:
+{
+  "path": "third_party/blink/renderer/core/style",
+  "browserUrl": "https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/style/",
+  "totalItems": 164,
+  "folders": 0,
+  "files": 164,
+  "items": [
+    {
+      "name": "anchor_specifier_value.cc",
+      "type": "file"
+    },
+    {
+      "name": "anchor_specifier_value.h",
+      "type": "file"
+    },
+    {
+      "name": "sub_folder",
+      "type": "folder"
+    }
+  ]
+}
+
+### 5. owners - Find OWNERS files for a file path
 Usage: ch owners <path>
 Aliases: own
 
@@ -101,7 +133,7 @@ JSON Output Format:
   ]
 }
 
-### 5. commits - Search commit history
+### 6. commits - Search commit history
 Usage: ch commits <query> [options]
 Aliases: cm
 
@@ -131,7 +163,7 @@ JSON Output Format:
   ]
 }
 
-### 6. gerrit - Gerrit code review operations
+### 7. gerrit - Gerrit code review operations
 Usage: ch gerrit <command> [options]
 Aliases: gr
 
@@ -185,7 +217,7 @@ JSON Output Format for bots:
   "timestamp": "2024-06-30T10:30:00.000Z"
 }
 
-### 7. pdfium - PDFium Gerrit operations
+### 8. pdfium - PDFium Gerrit operations
 Usage: ch pdfium <command> [options]
 Aliases: pdf
 
@@ -216,7 +248,7 @@ Examples:
   ch pdfium bots 130850 --format json
   ch pdfium bots 130850 --failed-only --format json
 
-### 8. issues - Chromium issue operations
+### 9. issues - Chromium issue operations
 Usage: ch issues <command> [options]
 Aliases: bugs
 
@@ -278,7 +310,7 @@ JSON Output Format for search:
   "searchUrl": "https://issues.chromium.org/issues?q=memory%20leak"
 }
 
-### 8. issue - Get Chromium issue details (Legacy)
+### 10. issue - Get Chromium issue details (Legacy)
 Usage: ch issue <id>
 Aliases: bug
 
@@ -332,6 +364,12 @@ ch gerrit bots 6624568 --format json | jq '{passed: .passedBots, failed: .failed
 
 # Check if all bots passed for a CL
 ch gerrit bots 6624568 --format json | jq '.failedBots == 0 and .runningBots == 0'
+
+# List all .cc files in a folder
+ch list-folder "base" --format json | jq '.items[] | select(.type == "file" and (.name | endswith(".cc"))) | .name'
+
+# Count files by extension in a folder
+ch list-folder "chrome/browser/ui" --format json | jq '.items[] | select(.type == "file") | .name | split(".") | .[-1]' | sort | uniq -c
 \`\`\`
 
 ### Error Handling

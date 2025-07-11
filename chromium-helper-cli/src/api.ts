@@ -2845,4 +2845,251 @@ export class ChromiumAPI {
     };
   }
 
+  async listFolder(folderPath: string): Promise<any> {
+    try {
+      // Normalize folder path - remove leading/trailing slashes
+      const normalizedPath = folderPath.replace(/^\/+|\/+$/g, '');
+      
+      // Use Gitiles API to get directory listing
+      const gitilesUrl = `https://chromium.googlesource.com/chromium/src/+/main/${normalizedPath}/?format=JSON`;
+      
+      this.debug('[DEBUG] Fetching folder listing from Gitiles:', gitilesUrl);
+      
+      const response = await fetch(gitilesUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+      });
+      
+      if (!response.ok) {
+        // Check if this might be a path inside a submodule
+        const knownSubmodules = ['v8', 'third_party/webrtc', 'third_party/devtools-frontend'];
+        const isSubmodulePath = knownSubmodules.some(submodule => 
+          normalizedPath.startsWith(submodule + '/') || normalizedPath === submodule
+        );
+        
+        if (response.status === 404 && isSubmodulePath) {
+          // Try to fetch from submodule's own repository
+          const submodule = knownSubmodules.find(sm => normalizedPath.startsWith(sm));
+          
+          if (submodule === 'v8' || normalizedPath.startsWith('v8/')) {
+            return await this.listV8FolderViaGitHub(normalizedPath);
+          }
+          
+          if (submodule === 'third_party/webrtc' || normalizedPath.startsWith('third_party/webrtc/')) {
+            return await this.listWebRTCFolderViaGitiles(normalizedPath);
+          }
+          
+          throw new ChromiumSearchError(
+            `Cannot list folder: "${normalizedPath}" appears to be inside the "${submodule}" Git submodule. ` +
+            `Submodule contents cannot be listed through the main Chromium repository's API. ` +
+            `You can browse it at: https://source.chromium.org/chromium/chromium/src/+/main:${normalizedPath}/`
+          );
+        }
+        
+        throw new ChromiumSearchError(`Failed to fetch folder listing: HTTP ${response.status}`);
+      }
+      
+      const responseText = await response.text();
+      // Remove XSSI prefix
+      const jsonText = responseText.replace(/^\)]}'/, '');
+      const data = JSON.parse(jsonText);
+      
+      // Check if this is a submodule (like v8)
+      if (data.url && data.revision && !data.entries) {
+        // This is a submodule - try to fetch from the submodule's repository
+        if (data.url.includes('v8/v8')) {
+          return await this.listV8FolderViaGitHub(normalizedPath);
+        }
+        
+        if (data.url.includes('webrtc')) {
+          return await this.listWebRTCFolderViaGitiles(normalizedPath);
+        }
+        
+        // For other submodules, throw error
+        throw new ChromiumSearchError(
+          `Cannot list folder: "${normalizedPath}" is a Git submodule pointing to ${data.url}. ` +
+          `Submodules cannot be listed through the Gitiles API. ` +
+          `You can browse it at: https://source.chromium.org/chromium/chromium/src/+/main:${normalizedPath}/`
+        );
+      }
+      
+      // Parse the Gitiles response
+      const items: Array<{name: string, type: 'file' | 'folder'}> = [];
+      
+      if (data && data.entries && Array.isArray(data.entries)) {
+        for (const entry of data.entries) {
+          if (entry.name && entry.type) {
+            items.push({
+              name: entry.name,
+              type: entry.type === 'tree' ? 'folder' : 'file'
+            });
+          }
+        }
+      }
+      
+      // Sort items: folders first, then files, alphabetically
+      items.sort((a, b) => {
+        if (a.type !== b.type) {
+          return a.type === 'folder' ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+      
+      const folders = items.filter(item => item.type === 'folder');
+      const files = items.filter(item => item.type === 'file');
+      
+      return {
+        path: normalizedPath,
+        browserUrl: `https://source.chromium.org/chromium/chromium/src/+/main:${normalizedPath}/`,
+        totalItems: items.length,
+        folders: folders.length,
+        files: files.length,
+        items: items
+      };
+      
+    } catch (error: any) {
+      this.debug('[DEBUG] Error listing folder:', error);
+      
+      if (error instanceof ChromiumSearchError) {
+        throw error;
+      }
+      
+      throw new ChromiumSearchError(`Failed to list folder: ${error.message}`, error);
+    }
+  }
+
+  private async listV8FolderViaGitHub(path: string): Promise<any> {
+    try {
+      // Remove 'v8/' prefix if present
+      const v8Path = path.startsWith('v8/') ? path.substring(3) : path;
+      
+      // Use GitHub API to list contents
+      const githubApiUrl = `https://api.github.com/repos/v8/v8/contents/${v8Path}`;
+      
+      this.debug('[DEBUG] Fetching V8 folder from GitHub:', githubApiUrl);
+      
+      const response = await fetch(githubApiUrl, {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'chromium-helper-cli',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new ChromiumSearchError(`Failed to fetch V8 folder from GitHub: HTTP ${response.status}`);
+      }
+      
+      const items = await response.json() as any[];
+      
+      // Convert GitHub API response to our format
+      const formattedItems = items.map((item: any) => ({
+        name: item.name,
+        type: item.type === 'dir' ? 'folder' : 'file'
+      }));
+      
+      // Sort items: folders first, then files, alphabetically
+      formattedItems.sort((a: any, b: any) => {
+        if (a.type !== b.type) {
+          return a.type === 'folder' ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+      
+      const folders = formattedItems.filter((item: any) => item.type === 'folder');
+      const files = formattedItems.filter((item: any) => item.type === 'file');
+      
+      return {
+        path: path,
+        browserUrl: `https://source.chromium.org/chromium/chromium/src/+/main:${path}/`,
+        githubUrl: `https://github.com/v8/v8/tree/main/${v8Path}`,
+        totalItems: formattedItems.length,
+        folders: folders.length,
+        files: files.length,
+        items: formattedItems,
+        source: 'GitHub (V8 submodule)'
+      };
+      
+    } catch (error: any) {
+      this.debug('[DEBUG] Error fetching V8 folder from GitHub:', error);
+      
+      if (error instanceof ChromiumSearchError) {
+        throw error;
+      }
+      
+      throw new ChromiumSearchError(`Failed to list V8 folder: ${error.message}`, error);
+    }
+  }
+  
+  private async listWebRTCFolderViaGitiles(path: string): Promise<any> {
+    try {
+      // Remove 'third_party/webrtc/' prefix
+      const webrtcPath = path.replace(/^third_party\/webrtc\/?/, '');
+      
+      // Use WebRTC's Gitiles API
+      const gitilesUrl = `https://webrtc.googlesource.com/src/+/main/${webrtcPath}?format=JSON`;
+      
+      this.debug('[DEBUG] Fetching WebRTC folder from Gitiles:', gitilesUrl);
+      
+      const response = await fetch(gitilesUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new ChromiumSearchError(`Failed to fetch WebRTC folder: HTTP ${response.status}`);
+      }
+      
+      const responseText = await response.text();
+      const jsonText = responseText.replace(/^\)]}'/, '');
+      const data = JSON.parse(jsonText);
+      
+      // Parse the Gitiles response
+      const items: Array<{name: string, type: 'file' | 'folder'}> = [];
+      
+      if (data && data.entries && Array.isArray(data.entries)) {
+        for (const entry of data.entries) {
+          if (entry.name && entry.type) {
+            items.push({
+              name: entry.name,
+              type: entry.type === 'tree' ? 'folder' : 'file'
+            });
+          }
+        }
+      }
+      
+      // Sort items: folders first, then files, alphabetically
+      items.sort((a, b) => {
+        if (a.type !== b.type) {
+          return a.type === 'folder' ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+      
+      const folders = items.filter(item => item.type === 'folder');
+      const files = items.filter(item => item.type === 'file');
+      
+      return {
+        path: path,
+        browserUrl: `https://source.chromium.org/chromium/chromium/src/+/main:${path}/`,
+        webrtcUrl: `https://webrtc.googlesource.com/src/+/main/${webrtcPath}`,
+        totalItems: items.length,
+        folders: folders.length,
+        files: files.length,
+        items: items,
+        source: 'WebRTC Gitiles (submodule)'
+      };
+      
+    } catch (error: any) {
+      this.debug('[DEBUG] Error fetching WebRTC folder:', error);
+      
+      if (error instanceof ChromiumSearchError) {
+        throw error;
+      }
+      
+      throw new ChromiumSearchError(`Failed to list WebRTC folder: ${error.message}`, error);
+    }
+  }
+
 }
