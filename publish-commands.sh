@@ -1,0 +1,16 @@
+#!/bin/bash
+
+echo "Please run these commands to publish both packages:"
+echo ""
+echo "1. First, log in to npm:"
+echo "   npm login"
+echo ""
+echo "2. Publish the MCP server:"
+echo "   cd /Users/hjanuschka/chromium-codesearch-mcp"
+echo "   npm publish"
+echo ""
+echo "3. Publish the CLI tool:"
+echo "   cd /Users/hjanuschka/chromium-codesearch-mcp/chromium-helper-cli"
+echo "   npm publish"
+echo ""
+echo "Both packages are at version 1.2.0 and ready to publish!"

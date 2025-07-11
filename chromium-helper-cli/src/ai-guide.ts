@@ -90,6 +90,13 @@ Examples:
   ch list-folder "third_party/blink/renderer/core/style" --format json
   ch list-folder "base" --format json
   ch list-folder "chrome/browser/ui" --format table
+  ch list-folder "v8/test/benchmarks" --format json  # Uses GitHub API for V8 submodule
+  ch list-folder "third_party/webrtc" --format json  # Uses WebRTC Gitiles for submodule
+
+Special Support for Git Submodules:
+- V8 paths (e.g., v8/test): Automatically fetches from GitHub (https://github.com/v8/v8)
+- WebRTC paths (e.g., third_party/webrtc): Automatically fetches from WebRTC Gitiles
+- Other submodules: Returns helpful error with browse URL
 
 JSON Output Format:
 {
@@ -111,7 +118,9 @@ JSON Output Format:
       "name": "sub_folder",
       "type": "folder"
     }
-  ]
+  ],
+  "source": "GitHub (V8 submodule)",  // Only present for submodules
+  "githubUrl": "https://github.com/v8/v8/tree/main/test/benchmarks"  // For V8
 }
 
 ### 5. owners - Find OWNERS files for a file path
@@ -370,6 +379,12 @@ ch list-folder "base" --format json | jq '.items[] | select(.type == "file" and 
 
 # Count files by extension in a folder
 ch list-folder "chrome/browser/ui" --format json | jq '.items[] | select(.type == "file") | .name | split(".") | .[-1]' | sort | uniq -c
+
+# List V8 test subdirectories
+ch list-folder "v8/test" --format json | jq '.items[] | select(.type == "folder") | .name'
+
+# Check if a WebRTC folder exists
+ch list-folder "third_party/webrtc/api" --format json | jq '.totalItems > 0'
 \`\`\`
 
 ### Error Handling
