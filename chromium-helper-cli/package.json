@@ -1,6 +1,6 @@
 {
   "name": "chromium-helper",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "description": "CLI tool for searching and exploring Chromium source code via Google's official APIs",
   "type": "module",
   "main": "dist/index.js",
@@ -37,11 +37,11 @@
   },
   "homepage": "https://github.com/hjanuschka/chromium-helper/tree/main/chromium-helper-cli#readme",
   "dependencies": {
-    "commander": "^12.0.0",
+    "chalk": "^5.3.0",
     "cheerio": "^1.1.0",
+    "commander": "^12.0.0",
     "node-fetch": "^3.3.2",
     "playwright": "^1.52.0",
-    "chalk": "^5.3.0",
     "table": "^6.8.0"
   },
   "devDependencies": {
