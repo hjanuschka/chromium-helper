@@ -198,7 +198,7 @@ function formatSymbolResultsPlain(data: any): string {
 }
 
 function formatFileTable(data: any): string {
-  const { filePath, totalLines, displayedLines, lineStart, lineEnd, browserUrl } = data;
+  const { filePath, totalLines, displayedLines, lineStart, lineEnd, browserUrl, source, githubUrl, webrtcUrl } = data;
   
   let output = chalk.bold.cyan(`File: ${filePath}\n`);
   output += chalk.gray(`Total lines: ${totalLines} | Displayed: ${displayedLines}\n`);
@@ -207,8 +207,21 @@ function formatFileTable(data: any): string {
     output += chalk.gray(`Lines: ${lineStart}${lineEnd ? `-${lineEnd}` : '+'}\n`);
   }
   
-  output += chalk.blue(`🔗 ${browserUrl}\n\n`);
-  output += chalk.gray('Content:\n');
+  if (source) {
+    output += chalk.yellow(`📌 Source: ${source}\n`);
+  }
+  
+  output += chalk.blue(`🔗 ${browserUrl}\n`);
+  
+  if (githubUrl) {
+    output += chalk.blue(`🔗 GitHub: ${githubUrl}\n`);
+  }
+  
+  if (webrtcUrl) {
+    output += chalk.blue(`🔗 WebRTC: ${webrtcUrl}\n`);
+  }
+  
+  output += '\n' + chalk.gray('Content:\n');
   output += '─'.repeat(80) + '\n';
   output += data.content + '\n';
   output += '─'.repeat(80) + '\n';

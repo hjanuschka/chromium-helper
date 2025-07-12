@@ -839,6 +839,20 @@ class ChromiumCodeSearchServer {
     const { file_path, line_start, line_end } = args;
     
     try {
+      // Check if this is a submodule file
+      const knownSubmodules = ['v8/', 'third_party/webrtc/'];
+      const isSubmodulePath = knownSubmodules.some(submodule => file_path.startsWith(submodule));
+      
+      if (isSubmodulePath) {
+        // Handle submodule files
+        if (file_path.startsWith('v8/')) {
+          return await this.getV8FileViaGitHub(file_path, line_start, line_end);
+        }
+        if (file_path.startsWith('third_party/webrtc/')) {
+          return await this.getWebRTCFileViaGitiles(file_path, line_start, line_end);
+        }
+      }
+      
       // Fetch from Gitiles API
       const gitileUrl = `https://chromium.googlesource.com/chromium/src/+/main/${file_path}?format=TEXT`;
       
@@ -3152,6 +3166,158 @@ class ChromiumCodeSearchServer {
       
     } catch (error: any) {
       this.log('error', 'Failed to fetch WebRTC folder', { path, error: error.message });
+      throw error;
+    }
+  }
+
+  private async getV8FileViaGitHub(filePath: string, lineStart?: number, lineEnd?: number) {
+    try {
+      // Remove 'v8/' prefix
+      const v8Path = filePath.substring(3);
+      
+      // Use GitHub raw content URL
+      const githubUrl = `https://raw.githubusercontent.com/v8/v8/main/${v8Path}`;
+      
+      this.log('debug', 'Fetching V8 file from GitHub', { path: v8Path, url: githubUrl });
+      
+      const response = await fetch(githubUrl, {
+        headers: {
+          'User-Agent': 'chromium-codesearch-mcp',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new ChromiumSearchError(`Failed to fetch V8 file from GitHub: HTTP ${response.status}`);
+      }
+      
+      const fileContent = await response.text();
+      const lines = fileContent.split('\n');
+      let displayLines = lines;
+      let startLine = 1;
+      
+      // Apply line range if specified
+      if (lineStart) {
+        const start = Math.max(1, lineStart) - 1;
+        const end = lineEnd ? Math.min(lines.length, lineEnd) : lines.length;
+        displayLines = lines.slice(start, end);
+        startLine = start + 1;
+      }
+      
+      // Format content with line numbers
+      const numberedLines = displayLines.map((line, index) => {
+        const lineNum = (startLine + index).toString().padStart(4, ' ');
+        return `${lineNum}  ${line}`;
+      }).join('\n');
+      
+      // Create browser URL
+      let browserUrl = `https://source.chromium.org/chromium/chromium/src/+/main:${filePath}`;
+      let githubBrowserUrl = `https://github.com/v8/v8/blob/main/${v8Path}`;
+      if (lineStart) {
+        browserUrl += `;l=${lineStart}`;
+        githubBrowserUrl += `#L${lineStart}`;
+        if (lineEnd) {
+          browserUrl += `-${lineEnd}`;
+          githubBrowserUrl += `-L${lineEnd}`;
+        }
+      }
+      
+      const totalLines = lines.length;
+      const displayedLines = displayLines.length;
+      const lineRangeText = lineStart ? ` (lines ${lineStart}${lineEnd ? `-${lineEnd}` : '+'})` : '';
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: `## V8 File: ${filePath}${lineRangeText}\n\n` +
+                  `📊 **Total lines:** ${totalLines} | **Displayed:** ${displayedLines}\n` +
+                  `🔗 **Chromium Browser:** ${browserUrl}\n` +
+                  `🔗 **GitHub:** ${githubBrowserUrl}\n` +
+                  `📌 **Source:** GitHub (V8 submodule)\n\n` +
+                  `\`\`\`${this.getFileExtension(filePath)}\n${numberedLines}\n\`\`\``,
+          },
+        ],
+      };
+      
+    } catch (error: any) {
+      this.log('error', 'Failed to fetch V8 file from GitHub', { filePath, error: error.message });
+      throw error;
+    }
+  }
+  
+  private async getWebRTCFileViaGitiles(filePath: string, lineStart?: number, lineEnd?: number) {
+    try {
+      // Remove 'third_party/webrtc/' prefix
+      const webrtcPath = filePath.replace(/^third_party\/webrtc\/?/, '');
+      
+      // Use WebRTC's Gitiles API
+      const gitilesUrl = `https://webrtc.googlesource.com/src/+/main/${webrtcPath}?format=TEXT`;
+      
+      this.log('debug', 'Fetching WebRTC file from Gitiles', { path: webrtcPath, url: gitilesUrl });
+      
+      const response = await fetch(gitilesUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new ChromiumSearchError(`Failed to fetch WebRTC file: HTTP ${response.status}`);
+      }
+      
+      // The response is base64 encoded
+      const base64Content = await response.text();
+      const fileContent = Buffer.from(base64Content, 'base64').toString('utf-8');
+      
+      const lines = fileContent.split('\n');
+      let displayLines = lines;
+      let startLine = 1;
+      
+      // Apply line range if specified
+      if (lineStart) {
+        const start = Math.max(1, lineStart) - 1;
+        const end = lineEnd ? Math.min(lines.length, lineEnd) : lines.length;
+        displayLines = lines.slice(start, end);
+        startLine = start + 1;
+      }
+      
+      // Format content with line numbers
+      const numberedLines = displayLines.map((line, index) => {
+        const lineNum = (startLine + index).toString().padStart(4, ' ');
+        return `${lineNum}  ${line}`;
+      }).join('\n');
+      
+      // Create URLs
+      let browserUrl = `https://source.chromium.org/chromium/chromium/src/+/main:${filePath}`;
+      let webrtcUrl = `https://webrtc.googlesource.com/src/+/main/${webrtcPath}`;
+      if (lineStart) {
+        browserUrl += `;l=${lineStart}`;
+        webrtcUrl += `#${lineStart}`;
+        if (lineEnd) {
+          browserUrl += `-${lineEnd}`;
+        }
+      }
+      
+      const totalLines = lines.length;
+      const displayedLines = displayLines.length;
+      const lineRangeText = lineStart ? ` (lines ${lineStart}${lineEnd ? `-${lineEnd}` : '+'})` : '';
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: `## WebRTC File: ${filePath}${lineRangeText}\n\n` +
+                  `📊 **Total lines:** ${totalLines} | **Displayed:** ${displayedLines}\n` +
+                  `🔗 **Chromium Browser:** ${browserUrl}\n` +
+                  `🔗 **WebRTC Gitiles:** ${webrtcUrl}\n` +
+                  `📌 **Source:** WebRTC Gitiles (submodule)\n\n` +
+                  `\`\`\`${this.getFileExtension(filePath)}\n${numberedLines}\n\`\`\``,
+          },
+        ],
+      };
+      
+    } catch (error: any) {
+      this.log('error', 'Failed to fetch WebRTC file', { filePath, error: error.message });
       throw error;
     }
   }
