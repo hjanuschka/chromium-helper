@@ -4,7 +4,12 @@
       "Bash(npm install)",
       "Bash(npm run build:*)",
       "Bash(npm install:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(mkdir:*)",
+      "Bash(git clone:*)",
+      "Bash(go mod:*)",
+      "Bash(ls:*)",
+      "Bash(go build:*)"
     ],
     "deny": []
   }

@@ -42,3 +42,13 @@ Thumbs.db
 
 # Local MCP config files (contain user-specific paths)
 claude-desktop-config.json
+
+# Go binaries
+chromium-helper
+chromium-mcp-server
+test-mcp
+*.exe
+
+# Temporary directories
+tmp/
+temp/

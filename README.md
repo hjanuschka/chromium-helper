@@ -12,6 +12,8 @@
 **The ultimate toolkit for exploring Chromium and PDFium source code**  
 *CLI tool & MCP server for code search, Gerrit integration, and issue tracking*
 
+> **🆕 Go Implementation Available**: Check out the `golang` branch for a complete Go implementation with better performance and single-binary distribution!
+
 [Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Contributing](#-contributing) • [License](#-license)
 
 </div>
