@@ -9,7 +9,14 @@
       "Bash(git clone:*)",
       "Bash(go mod:*)",
       "Bash(ls:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(go get github.com/tidwall/gjson)",
+      "Bash(./go-chromium-helper commits \"navigation\" --limit 5)",
+      "Bash(./go-chromium-helper gerrit status 6624568)",
+      "Bash(./go-chromium-helper gerrit comments 6624568)",
+      "Bash(./go-chromium-helper gerrit diff 6624568)",
+      "Bash(curl \"https://chromium-review.googlesource.com/changes/6624568/comments?o=DETAILED_ACCOUNTS\")",
+      "Bash(curl \"https://chromium-review.googlesource.com/changes/3334543/comments?o=DETAILED_ACCOUNTS\")"
     ],
     "deny": []
   }

@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewFileCommand() *cobra.Command {
+func NewFileCommand(client *api.ChromiumClient) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "file <path> [line_start[-line_end]]",
 		Short: "Get the contents of a file from Chromium source",
@@ -50,9 +50,7 @@ Examples:
 				}
 			}
 			
-			// Create API client
-			client := api.NewChromiumClient()
-			
+						
 			// Get file content
 			content, err := client.GetFile(path, &opts)
 			if err != nil {

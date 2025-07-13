@@ -1,12 +1,13 @@
 package cli
 
 import (
-	"fmt"
+	"github.com/hjanuschka/chromium-helper/internal/api"
+	"github.com/hjanuschka/chromium-helper/internal/formatter"
 
 	"github.com/spf13/cobra"
 )
 
-func NewIssueCommand() *cobra.Command {
+func NewIssueCmd(client *api.ChromiumClient) *cobra.Command {
 	return &cobra.Command{
 		Use:   "issue <issue_number>",
 		Short: "Get details about a Chromium issue",
@@ -17,8 +18,13 @@ Examples:
   chromium-helper issue 40118868`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Implement issue lookup
-			fmt.Println("Issue lookup functionality will be implemented in the Go version")
+						issue, err := client.GetIssue(args[0])
+			if err != nil {
+				return err
+			}
+
+			formatter.PrintIssueDetails(issue)
+
 			return nil
 		},
 	}

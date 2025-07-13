@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewSymbolCommand() *cobra.Command {
+func NewSymbolCommand(client *api.ChromiumClient) *cobra.Command {
 	var symbolType string
 	var filePattern string
 	
@@ -28,9 +28,7 @@ Examples:
 			symbol := args[0]
 			format, _ := cmd.Flags().GetString("format")
 			
-			// Create API client
-			client := api.NewChromiumClient()
-			
+						
 			// Find symbol
 			result, err := client.FindSymbol(symbol, &api.SymbolOptions{
 				Type:        symbolType,

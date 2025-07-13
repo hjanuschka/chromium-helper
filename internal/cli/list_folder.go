@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewListFolderCommand() *cobra.Command {
+func NewListFolderCommand(client *api.ChromiumClient) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list-folder <path>",
 		Aliases: []string{"ls"},
@@ -28,9 +28,7 @@ Examples:
 			path := args[0]
 			format, _ := cmd.Flags().GetString("format")
 			
-			// Create API client
-			client := api.NewChromiumClient()
-			
+						
 			// List folder contents
 			content, err := client.ListFolder(path)
 			if err != nil {

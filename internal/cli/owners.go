@@ -1,25 +1,33 @@
 package cli
 
 import (
-	"fmt"
-
+	"github.com/hjanuschka/chromium-helper/internal/api"
+	"github.com/hjanuschka/chromium-helper/internal/formatter"
 	"github.com/spf13/cobra"
+	"log"
 )
 
-func NewOwnersCommand() *cobra.Command {
-	return &cobra.Command{
+func NewOwnersCmd(client *api.ChromiumClient) *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "owners <file_path>",
-		Short: "Find code owners for a file or directory",
-		Long: `Find code owners and reviewers for a specific file or directory in Chromium.
+		Short: "Find owners for a file in the Chromium codebase",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			filePath := args[0]
+			format, _ := cmd.Flags().GetString("format")
 
-Examples:
-  chromium-helper owners content/browser/
-  chromium-helper owners chrome/browser/ui/views/frame/browser_view.cc`,
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Implement owners lookup
-			fmt.Println("Owners lookup functionality will be implemented in the Go version")
-			return nil
+			owners, err := client.FindOwners(filePath)
+			if err != nil {
+				log.Fatalf("Failed to find owners: %v", err)
+			}
+
+			switch format {
+			case "json":
+				formatter.PrintOwnersJSON(owners)
+			default:
+				formatter.PrintOwnersTable(owners)
+			}
 		},
 	}
+	return cmd
 }

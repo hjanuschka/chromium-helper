@@ -1,14 +1,19 @@
 package api
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tidwall/gjson"
 )
 
 const (
@@ -60,7 +65,6 @@ type SearchMatch struct {
 }
 
 func (c *ChromiumClient) SearchCode(query string, opts *SearchOptions) (*SearchResult, error) {
-	// Build search query
 	searchQuery := query
 	if opts != nil && opts.FilePattern != "" {
 		searchQuery = fmt.Sprintf("file:%s %s", opts.FilePattern, searchQuery)
@@ -71,18 +75,15 @@ func (c *ChromiumClient) SearchCode(query string, opts *SearchOptions) (*SearchR
 		limit = opts.Limit
 	}
 	
-	// Call the Chromium Search API
 	apiResponse, err := c.callChromiumSearchAPI(searchQuery, limit)
 	if err != nil {
 		return nil, err
 	}
 	
-	// Parse the response
 	return c.parseChromiumAPIResponse(apiResponse)
 }
 
 func (c *ChromiumClient) callChromiumSearchAPI(query string, limit int) (map[string]interface{}, error) {
-	// Create search payload
 	searchPayload := map[string]interface{}{
 		"queryString": query,
 		"searchOptions": map[string]interface{}{
@@ -111,10 +112,8 @@ func (c *ChromiumClient) callChromiumSearchAPI(query string, limit int) (map[str
 		},
 	}
 	
-	// Generate boundary for multipart request
 	boundary := fmt.Sprintf("batch%d%d", time.Now().Unix(), time.Now().Nanosecond())
 	
-	// Create multipart body
 	payloadJSON, err := json.Marshal(searchPayload)
 	if err != nil {
 		return nil, err
@@ -138,7 +137,6 @@ func (c *ChromiumClient) callChromiumSearchAPI(query string, limit int) (map[str
 		"",
 	}, "\r\n")
 	
-	// Make request
 	req, err := http.NewRequest("POST", batchAPIURL+"?%24ct=multipart%2Fmixed%3B%20boundary%3D"+boundary, strings.NewReader(multipartBody))
 	if err != nil {
 		return nil, err
@@ -171,7 +169,6 @@ func (c *ChromiumClient) callChromiumSearchAPI(query string, limit int) (map[str
 		return nil, err
 	}
 	
-	// Extract JSON from multipart response
 	responseText := string(body)
 	jsonStart := strings.Index(responseText, "{")
 	jsonEnd := strings.LastIndex(responseText, "}")
@@ -196,9 +193,6 @@ func (c *ChromiumClient) parseChromiumAPIResponse(apiResponse map[string]interfa
 		Results: []SearchMatch{},
 	}
 	
-	// Debug: print the response structure
-	// fmt.Printf("API Response: %+v\n", apiResponse)
-	
 	searchResults, ok := apiResponse["searchResults"].([]interface{})
 	if !ok {
 		return result, nil
@@ -222,7 +216,6 @@ func (c *ChromiumClient) parseChromiumAPIResponse(apiResponse map[string]interfa
 		
 		filePath, _ := fileSpec["path"].(string)
 		
-		// Get snippets
 		snippets, ok := fileSearchResult["snippets"].([]interface{})
 		if !ok {
 			continue
@@ -234,13 +227,11 @@ func (c *ChromiumClient) parseChromiumAPIResponse(apiResponse map[string]interfa
 				continue
 			}
 			
-			// Get snippet lines
 			snippetLines, ok := snippetMap["snippetLines"].([]interface{})
 			if !ok {
 				continue
 			}
 			
-			// Find the primary match line (the one with ranges)
 			var primaryLineNum int
 			var contextLines []string
 			
@@ -254,18 +245,15 @@ func (c *ChromiumClient) parseChromiumAPIResponse(apiResponse map[string]interfa
 				lineNumStr, _ := lineMap["lineNumber"].(string)
 				ranges, hasRanges := lineMap["ranges"].([]interface{})
 				
-				// Parse line number
 				lineNum := 0
 				if lineNumStr != "" {
 					fmt.Sscanf(lineNumStr, "%d", &lineNum)
 				}
 				
 				if hasRanges && len(ranges) > 0 && primaryLineNum == 0 {
-					// This is the primary match line
 					primaryLineNum = lineNum
 				}
 				
-				// Add to context
 				if hasRanges && len(ranges) > 0 {
 					contextLines = append(contextLines, "➤ "+lineText)
 				} else {
@@ -278,7 +266,7 @@ func (c *ChromiumClient) parseChromiumAPIResponse(apiResponse map[string]interfa
 					File:    filePath,
 					Line:    primaryLineNum,
 					Content: strings.Join(contextLines, "\n"),
-					Context: []string{}, // Context is embedded in Content for now
+					Context: []string{},
 				})
 			}
 		}
@@ -304,7 +292,6 @@ func min(a, b int) int {
 	return b
 }
 
-
 // File operations
 type FileOptions struct {
 	LineStart int
@@ -315,13 +302,12 @@ type FileContent struct {
 	Path    string   `json:"path"`
 	Content string   `json:"content"`
 	Lines   []string `json:"lines"`
-	Source  string   `json:"source,omitempty"` // "chromium", "v8", "webrtc"
+	Source  string   `json:"source,omitempty"`
 }
 
 func (c *ChromiumClient) GetFile(path string, opts *FileOptions) (*FileContent, error) {
 	normalizedPath := strings.TrimPrefix(path, "/")
 	
-	// Check if this is a submodule
 	if strings.HasPrefix(normalizedPath, "v8/") {
 		return c.getV8File(normalizedPath, opts)
 	}
@@ -334,7 +320,6 @@ func (c *ChromiumClient) GetFile(path string, opts *FileOptions) (*FileContent, 
 		return c.getDevtoolsFile(normalizedPath, opts)
 	}
 	
-	// Regular Chromium file
 	return c.getChromiumFile(normalizedPath, opts)
 }
 
@@ -356,7 +341,6 @@ func (c *ChromiumClient) getChromiumFile(path string, opts *FileOptions) (*FileC
 		return nil, err
 	}
 	
-	// Decode base64
 	decoded, err := base64.StdEncoding.DecodeString(string(body))
 	if err != nil {
 		return nil, err
@@ -365,7 +349,6 @@ func (c *ChromiumClient) getChromiumFile(path string, opts *FileOptions) (*FileC
 	content := string(decoded)
 	lines := strings.Split(content, "\n")
 	
-	// Apply line range if specified
 	if opts != nil && opts.LineStart > 0 && opts.LineEnd > 0 {
 		if opts.LineStart > len(lines) {
 			return nil, fmt.Errorf("line start %d exceeds file length %d", opts.LineStart, len(lines))
@@ -418,7 +401,6 @@ func (c *ChromiumClient) getV8File(path string, opts *FileOptions) (*FileContent
 		return nil, fmt.Errorf("unexpected encoding: %s", githubFile.Encoding)
 	}
 	
-	// Remove newlines from base64 content
 	githubFile.Content = strings.ReplaceAll(githubFile.Content, "\n", "")
 	
 	decoded, err := base64.StdEncoding.DecodeString(githubFile.Content)
@@ -429,7 +411,6 @@ func (c *ChromiumClient) getV8File(path string, opts *FileOptions) (*FileContent
 	content := string(decoded)
 	lines := strings.Split(content, "\n")
 	
-	// Apply line range if specified
 	if opts != nil && opts.LineStart > 0 && opts.LineEnd > 0 {
 		if opts.LineStart > len(lines) {
 			return nil, fmt.Errorf("line start %d exceeds file length %d", opts.LineStart, len(lines))
@@ -477,7 +458,6 @@ func (c *ChromiumClient) getWebRTCFile(path string, opts *FileOptions) (*FileCon
 	content := string(decoded)
 	lines := strings.Split(content, "\n")
 	
-	// Apply line range if specified
 	if opts != nil && opts.LineStart > 0 && opts.LineEnd > 0 {
 		if opts.LineStart > len(lines) {
 			return nil, fmt.Errorf("line start %d exceeds file length %d", opts.LineStart, len(lines))
@@ -498,13 +478,12 @@ func (c *ChromiumClient) getWebRTCFile(path string, opts *FileOptions) (*FileCon
 }
 
 func (c *ChromiumClient) getDevtoolsFile(path string, opts *FileOptions) (*FileContent, error) {
-	// DevTools uses the same Gitiles as Chromium
 	return c.getChromiumFile(path, opts)
 }
 
 // Symbol search
 type SymbolOptions struct {
-	Type        string // "definition", "declaration", "call", "all"
+	Type        string
 	FilePattern string
 }
 
@@ -546,20 +525,17 @@ func (c *ChromiumClient) FindSymbol(symbol string, opts *SymbolOptions) (*Symbol
 		References:  []SymbolMatch{},
 	}
 	
-	// Categorize results
 	for _, match := range searchResult.Results {
 		symbolMatch := SymbolMatch{
 			File:    match.File,
 			Line:    match.Line,
 			Content: match.Content,
-			Type:    "reference", // Default
+			Type:    "reference",
 		}
 		
-		// Heuristic to detect definitions
 		content := match.Content
 		isDefinition := false
 		
-		// Check for class/struct/enum definitions
 		if strings.Contains(content, "class "+symbol) ||
 			strings.Contains(content, "struct "+symbol) ||
 			strings.Contains(content, "enum "+symbol) {
@@ -567,25 +543,20 @@ func (c *ChromiumClient) FindSymbol(symbol string, opts *SymbolOptions) (*Symbol
 			symbolMatch.Type = "class/struct/enum definition"
 		}
 		
-		// Check for function definitions (return_type Symbol::Method or Symbol::Method()
 		if strings.Contains(content, symbol+"(") || strings.Contains(content, symbol+" (") {
-			// Check if it's preceded by a type (function definition)
 			beforeSymbol := strings.Split(content, symbol)[0]
 			if strings.Contains(beforeSymbol, "* ") || strings.Contains(beforeSymbol, "& ") ||
 				strings.Contains(beforeSymbol, "> ") || strings.Contains(beforeSymbol, " ") {
-				// Likely a function definition
 				isDefinition = true
 				symbolMatch.Type = "function definition"
 			}
 		}
 		
-		// Check for constructor definitions
 		if strings.Contains(content, symbol+"::"+symbol) {
 			isDefinition = true
 			symbolMatch.Type = "constructor definition"
 		}
 		
-		// Check for typedef
 		if strings.Contains(content, "typedef") && strings.Contains(content, symbol) {
 			isDefinition = true
 			symbolMatch.Type = "typedef"
@@ -604,7 +575,7 @@ func (c *ChromiumClient) FindSymbol(symbol string, opts *SymbolOptions) (*Symbol
 // List folder
 type FolderEntry struct {
 	Name  string `json:"name"`
-	Type  string `json:"type"` // "file" or "dir"
+	Type  string `json:"type"`
 	Size  int64  `json:"size,omitempty"`
 }
 
@@ -617,7 +588,6 @@ type FolderContent struct {
 func (c *ChromiumClient) ListFolder(path string) (*FolderContent, error) {
 	normalizedPath := strings.TrimPrefix(strings.TrimSuffix(path, "/"), "/")
 	
-	// Check for submodules
 	if strings.HasPrefix(normalizedPath, "v8/") || normalizedPath == "v8" {
 		return c.listV8Folder(normalizedPath)
 	}
@@ -626,7 +596,6 @@ func (c *ChromiumClient) ListFolder(path string) (*FolderContent, error) {
 		return c.listWebRTCFolder(normalizedPath)
 	}
 	
-	// Regular Chromium folder
 	return c.listChromiumFolder(normalizedPath)
 }
 
@@ -640,7 +609,6 @@ func (c *ChromiumClient) listChromiumFolder(path string) (*FolderContent, error)
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusOK {
-		// Check if it might be a submodule subdirectory
 		if resp.StatusCode == http.StatusNotFound {
 			if strings.HasPrefix(path, "v8/") {
 				return c.listV8Folder(path)
@@ -657,7 +625,6 @@ func (c *ChromiumClient) listChromiumFolder(path string) (*FolderContent, error)
 		return nil, err
 	}
 	
-	// Remove XSSI prefix
 	jsonStr := strings.TrimPrefix(string(body), ")]}'\n")
 	
 	var data struct {
@@ -772,7 +739,6 @@ func (c *ChromiumClient) listWebRTCFolder(path string) (*FolderContent, error) {
 		return nil, err
 	}
 	
-	// Remove XSSI prefix
 	jsonStr := strings.TrimPrefix(string(body), ")]}'\n")
 	
 	var data struct {
@@ -807,3 +773,449 @@ func (c *ChromiumClient) listWebRTCFolder(path string) (*FolderContent, error) {
 	
 	return result, nil
 }
+
+// Commit search
+type Commit struct {
+	Hash    string `json:"hash"`
+	Author  string `json:"author"`
+	Date    string `json:"date"`
+	Subject string `json:"subject"`
+}
+
+type CommitResult struct {
+	Query   string   `json:"query"`
+	Commits []Commit `json:"commits"`
+}
+
+func (c *ChromiumClient) SearchCommits(query string, limit int) (*CommitResult, error) {
+	baseURL := "https://chromium.googlesource.com/chromium/src/+log/main"
+	params := url.Values{}
+	params.Add("format", "JSON")
+	params.Add("n", fmt.Sprintf("%d", limit))
+	params.Add("grep", query)
+
+	resp, err := c.httpClient.Get(fmt.Sprintf("%s?%s", baseURL, params.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch commits: %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonStr := strings.TrimPrefix(string(body), ")]}'\n")
+
+	result := &CommitResult{
+		Query:   query,
+		Commits: []Commit{},
+	}
+
+	gjson.Get(jsonStr, "log").ForEach(func(key, value gjson.Result) bool {
+		commit := Commit{
+			Hash:    value.Get("commit").String(),
+			Author:  value.Get("author.name").String(),
+			Date:    value.Get("committer.time").String(),
+			Subject: value.Get("message").String(),
+		}
+		result.Commits = append(result.Commits, commit)
+		return true
+	})
+
+	return result, nil
+}
+
+// Gerrit CL status
+type GerritCLStatus struct {
+	Subject string `json:"subject"`
+	Status  string `json:"status"`
+	Owner   string `json:"owner"`
+	Updated string `json:"updated"`
+}
+
+func (c *ChromiumClient) GetGerritCLStatus(cl string) (*GerritCLStatus, error) {
+	url := fmt.Sprintf("https://chromium-review.googlesource.com/changes/%s?o=DETAILED_ACCOUNTS", cl)
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch CL status: %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonStr := strings.TrimPrefix(string(body), ")]}'\n")
+
+	owner := gjson.Get(jsonStr, "owner.name").String()
+	if owner == "" {
+		owner = gjson.Get(jsonStr, "owner.email").String()
+	}
+
+	updated, _ := time.Parse("2006-01-02 15:04:05.000000000", gjson.Get(jsonStr, "updated").String())
+
+	status := &GerritCLStatus{
+		Subject: gjson.Get(jsonStr, "subject").String(),
+		Status:  gjson.Get(jsonStr, "status").String(),
+		Owner:   owner,
+		Updated: updated.Format("2006-01-02"),
+	}
+
+	return status, nil
+}
+
+// Gerrit CL comments
+type GerritComment struct {
+	Author struct {
+		Name string `json:"name"`
+	} `json:"author"`
+	Updated time.Time `json:"updated"`
+	Message string    `json:"message"`
+}
+func (g *GerritComment) UnmarshalJSON(data []byte) error {
+	type Alias GerritComment
+	aux := &struct {
+		Updated string `json:"updated"`
+		*Alias
+	}{
+		Alias: (*Alias)(g),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	t, err := time.Parse("2006-01-02 15:04:05.000000000", aux.Updated)
+	if err != nil {
+		return err
+	}
+	g.Updated = t
+	return nil
+}
+
+
+
+type GerritCLComments struct {
+	Comments []GerritComment `json:"comments"`
+}
+
+func (c *ChromiumClient) GetGerritCLComments(cl string) (*GerritCLComments, error) {
+	url := fmt.Sprintf("https://chromium-review.googlesource.com/changes/%s/comments", cl)
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch CL comments: %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Remove XSSI prefix
+	jsonBody := bytes.TrimPrefix(body, []byte(")]}'\n"))
+
+	var comments GerritCLComments
+	// The response is a map of file paths to comment arrays. We need to flatten this.
+	var rawComments map[string][]GerritComment
+	if err := json.Unmarshal(jsonBody, &rawComments); err != nil {
+		return nil, fmt.Errorf("failed to decode CL comments: %w", err)
+	}
+
+	for _, fileComments := range rawComments {
+		for _, comment := range fileComments {
+			comments.Comments = append(comments.Comments, comment)
+		}
+	}
+
+	return &comments, nil
+}
+
+// Gerrit CL diff
+type GerritCLDiff struct {
+	Diff string `json:"diff"`
+}
+
+func (c *ChromiumClient) GetGerritCLDiff(cl string) (*GerritCLDiff, error) {
+	url := fmt.Sprintf("https://chromium-review.googlesource.com/changes/%s/revisions/current/patch", cl)
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch CL diff: %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(string(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode CL diff: %w", err)
+	}
+
+	diff := &GerritCLDiff{
+		Diff: string(decoded),
+	}
+
+	return diff, nil
+}
+
+// Issue details
+type Issue struct {
+	Title    string `json:"title"`
+	Status   string `json:"status"`
+	Priority string `json:"priority"`
+	Type     string `json:"type"`
+	Severity string `json:"severity"`
+	Reporter string `json:"reporter"`
+	Assignee string `json:"assignee"`
+	Created  string `json:"created"`
+	Modified string `json:"modified"`
+}
+
+func (c *ChromiumClient) GetIssue(issueID string) (*Issue, error) {
+	url := fmt.Sprintf("https://issues.chromium.org/action/issues/%s/getSummary", issueID)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Referer", fmt.Sprintf("https://issues.chromium.org/issues/%s", issueID))
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to fetch issue details: %s\n%s", resp.Status, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	body = bytes.TrimPrefix(body, []byte(")]}'"))
+
+	var data []interface{}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal issue details: %w\n%s", err, string(body))
+	}
+
+	events, ok := safeGet(data, "2").([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("could not find events array")
+	}
+
+	if len(events) == 0 {
+		return nil, fmt.Errorf("no events found")
+	}
+
+	firstEvent, ok := events[0].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("first event is not an array")
+	}
+
+	metadata, ok := safeGet(firstEvent, "5").([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("could not find metadata array")
+	}
+
+	issue := &Issue{}
+	for _, item := range metadata {
+		field, ok := item.([]interface{})
+		if !ok || len(field) < 1 {
+			continue
+		}
+		fieldName, ok := field[0].(string)
+		if !ok {
+			continue
+		}
+
+		switch fieldName {
+		case "title":
+			issue.Title = safeGetString(field, "2.1.0")
+		case "status":
+			issue.Status = mapIssueStatus(int64(safeGetInt(field, "2.1.0")))
+		case "priority":
+			issue.Priority = mapIssuePriority(int64(safeGetInt(field, "2.1.0")))
+		case "type":
+			issue.Type = mapIssueType(int64(safeGetInt(field, "2.1.0")))
+		case "severity":
+			issue.Severity = mapIssueSeverity(int64(safeGetInt(field, "2.1.0")))
+		case "reporter":
+			issue.Reporter = safeGetString(field, "2.1.1")
+		case "assignee":
+			issue.Assignee = safeGetString(field, "2.1.1")
+		}
+	}
+
+	return issue, nil
+}
+
+func safeGet(data interface{}, path string) interface{} {
+	parts := strings.Split(path, ".")
+	current := data
+	for _, part := range parts {
+		idx, err := strconv.Atoi(part)
+		if err != nil {
+			return nil
+		}
+		arr, ok := current.([]interface{})
+		if !ok || len(arr) <= idx {
+			return nil
+		}
+		current = arr[idx]
+	}
+	return current
+}
+
+func safeGetString(data interface{}, path string) string {
+	val := safeGet(data, path)
+	s, _ := val.(string)
+	return s
+}
+
+func safeGetInt(data interface{}, path string) float64 {
+	val := safeGet(data, path)
+	f, _ := val.(float64)
+	return f
+}
+
+func mapIssueStatus(status int64) string {
+	switch status {
+	case 1:
+		return "NEW"
+	case 2:
+		return "ASSIGNED"
+	case 3:
+		return "ACCEPTED"
+	case 4:
+		return "FIXED"
+	case 5:
+		return "VERIFIED"
+	case 6:
+		return "INVALID"
+	case 7:
+		return "WONTFIX"
+	case 8:
+		return "DUPLICATE"
+	case 9:
+		return "ARCHIVED"
+	default:
+		return "Unknown"
+	}
+}
+
+func mapIssuePriority(priority int64) string {
+	switch priority {
+	case 0:
+		return "P0"
+	case 1:
+		return "P1"
+	case 2:
+		return "P2"
+	case 3:
+		return "P3"
+	case 4:
+		return "P4"
+	default:
+		return "Unknown"
+	}
+}
+
+func mapIssueType(issueType int64) string {
+	switch issueType {
+	case 1:
+		return "Bug"
+	case 2:
+		return "Feature"
+	case 3:
+		return "Task"
+	default:
+		return "Unknown"
+	}
+}
+
+func mapIssueSeverity(severity int64) string {
+	switch severity {
+	case 0:
+		return "S0"
+	case 1:
+		return "S1"
+	case 2:
+		return "S2"
+	case 3:
+		return "S3"
+	case 4:
+		return "S4"
+	default:
+		return "Unknown"
+	}
+}
+
+// Owners
+type OwnersFile struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+type OwnersResult struct {
+	FilePath   string       `json:"file_path"`
+	OwnerFiles []OwnersFile `json:"owner_files"`
+}
+
+func (c *ChromiumClient) FindOwners(filePath string) (*OwnersResult, error) {
+	result := &OwnersResult{
+		FilePath:   filePath,
+		OwnerFiles: []OwnersFile{},
+	}
+
+	pathParts := strings.Split(filePath, "/")
+	for i := len(pathParts); i > 0; i-- {
+		dirPath := strings.Join(pathParts[:i], "/")
+		ownersPath := fmt.Sprintf("%s/OWNERS", dirPath)
+		if dirPath == "" {
+			ownersPath = "OWNERS"
+		}
+
+		fileContent, err := c.GetFile(ownersPath, nil)
+		if err == nil {
+			result.OwnerFiles = append(result.OwnerFiles, OwnersFile{
+				Path:    ownersPath,
+				Content: fileContent.Content,
+			})
+		}
+	}
+
+	return result, nil
+}
+
+
+
+
+
+
+
+

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/hjanuschka/chromium-helper/internal/api"
 	"github.com/hjanuschka/chromium-helper/internal/cli"
 	"github.com/spf13/cobra"
 )
@@ -21,16 +22,18 @@ through Google's official CodeSearch API. Search code, find symbols, browse file
 	var outputFormat string
 	rootCmd.PersistentFlags().StringVarP(&outputFormat, "format", "f", "table", "Output format: table, plain, json")
 
+	client := api.NewChromiumClient()
+
 	// Add commands
-	rootCmd.AddCommand(cli.NewSearchCommand())
-	rootCmd.AddCommand(cli.NewFileCommand())
-	rootCmd.AddCommand(cli.NewSymbolCommand())
-	rootCmd.AddCommand(cli.NewListFolderCommand())
-	rootCmd.AddCommand(cli.NewGerritCommand())
-	rootCmd.AddCommand(cli.NewIssueCommand())
-	rootCmd.AddCommand(cli.NewCommitCommand())
-	rootCmd.AddCommand(cli.NewOwnersCommand())
-	rootCmd.AddCommand(cli.NewAIGuideCommand())
+	rootCmd.AddCommand(cli.NewSearchCommand(client))
+	rootCmd.AddCommand(cli.NewFileCommand(client))
+	rootCmd.AddCommand(cli.NewSymbolCommand(client))
+	rootCmd.AddCommand(cli.NewListFolderCommand(client))
+	rootCmd.AddCommand(cli.NewGerritCommand(client))
+	rootCmd.AddCommand(cli.NewIssueCmd(client))
+	rootCmd.AddCommand(cli.NewCommitsCommand(client))
+	rootCmd.AddCommand(cli.NewOwnersCmd(client))
+	rootCmd.AddCommand(cli.NewAIGuideCommand(client))
 
 	// Execute
 	if err := rootCmd.Execute(); err != nil {

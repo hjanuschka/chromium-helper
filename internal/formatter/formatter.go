@@ -1,6 +1,7 @@
 package formatter
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -285,3 +286,133 @@ func formatSize(size int64) string {
 	}
 	return fmt.Sprintf("%.1f %cB", float64(size)/float64(div), "KMGTPE"[exp])
 }
+
+func PrintCommitResultsTable(result *api.CommitResult) {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Hash", "Author", "Date", "Subject"})
+	table.SetAutoWrapText(true)
+	table.SetRowLine(true)
+
+	for _, commit := range result.Commits {
+		hash := commit.Hash[:12]
+		subject := strings.Split(commit.Subject, "\n")[0]
+		date := strings.Split(commit.Date, " ")[0]
+		table.Append([]string{
+			hash,
+			commit.Author,
+			date,
+			subject,
+		})
+	}
+
+	table.Render()
+}
+
+func PrintCommitResultsPlain(result *api.CommitResult) {
+	for _, commit := range result.Commits {
+		hash := commit.Hash[:12]
+		subject := strings.Split(commit.Subject, "\n")[0]
+		date := strings.Split(commit.Date, " ")[0]
+		fmt.Printf("%s %s %s %s\n", hash, commit.Author, date, subject)
+	}
+}
+
+
+// Gerrit CL Status formatting
+func PrintGerritCLStatus(status *api.GerritCLStatus) {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Subject", "Status", "Owner", "Updated"})
+	table.Append([]string{
+		status.Subject,
+		status.Status,
+		status.Owner,
+		status.Updated,
+	})
+	table.Render()
+}
+
+// Gerrit CL Comments formatting
+func PrintGerritCLComments(comments *api.GerritCLComments) {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Author", "Updated", "Message"})
+	table.SetAutoWrapText(true)
+	table.SetRowLine(true)
+
+	for _, comment := range comments.Comments {
+		table.Append([]string{
+			comment.Author.Name,
+			comment.Updated.Format("2006-01-02"),
+			strings.TrimSpace(comment.Message),
+		})
+	}
+
+	table.Render()
+}
+
+// Gerrit CL Diff formatting
+func PrintGerritCLDiff(diff *api.GerritCLDiff) {
+	fmt.Println(diff.Diff)
+}
+
+func PrintIssueDetails(issue *api.Issue) {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Field", "Value"})
+	table.SetAutoWrapText(false)
+
+	data := [][]string{
+		{"Title", issue.Title},
+		{"Status", issue.Status},
+		{"Priority", issue.Priority},
+		{"Type", issue.Type},
+		{"Severity", issue.Severity},
+		{"Reporter", issue.Reporter},
+		{"Assignee", issue.Assignee},
+		{"Created", issue.Created},
+		{"Modified", issue.Modified},
+	}
+
+	for _, v := range data {
+		table.Append(v)
+	}
+
+	table.Render()
+}
+
+// Owners formatting
+func PrintOwnersTable(result *api.OwnersResult) {
+	fmt.Printf("\n%s\n", headerColor.Sprintf("OWNERS for: %s", result.FilePath))
+
+	if len(result.OwnerFiles) == 0 {
+		fmt.Println("No OWNERS files found.")
+		return
+	}
+
+	for _, ownerFile := range result.OwnerFiles {
+		fmt.Printf("\n%s\n", fileColor.Sprintf("OWNERS File: %s", ownerFile.Path))
+		fmt.Println(strings.Repeat("-", 40))
+		fmt.Println(ownerFile.Content)
+	}
+}
+
+func PrintOwnersJSON(result *api.OwnersResult) {
+	// Simple JSON output for now
+	type aikenOutput struct {
+		FilePath   string           `json:"file_path"`
+		OwnerFiles []api.OwnersFile `json:"owner_files"`
+	}
+
+	output := aikenOutput{
+		FilePath:   result.FilePath,
+		OwnerFiles: result.OwnerFiles,
+	}
+
+	out, err := json.MarshalIndent(output, "", "  ")
+	if err != nil {
+		fmt.Printf("Error formatting JSON: %v\n", err)
+		return
+	}
+	fmt.Println(string(out))
+}
+
+
+

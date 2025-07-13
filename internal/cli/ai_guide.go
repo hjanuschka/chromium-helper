@@ -4,10 +4,11 @@ import (
 	"fmt"
 
 	"github.com/fatih/color"
+	"github.com/hjanuschka/chromium-helper/internal/api"
 	"github.com/spf13/cobra"
 )
 
-func NewAIGuideCommand() *cobra.Command {
+func NewAIGuideCommand(client *api.ChromiumClient) *cobra.Command {
 	return &cobra.Command{
 		Use:     "ai",
 		Aliases: []string{"--ai"},

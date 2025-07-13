@@ -1,60 +1,111 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
+	"github.com/hjanuschka/chromium-helper/internal/api"
+	"github.com/hjanuschka/chromium-helper/internal/formatter"
 	"github.com/spf13/cobra"
 )
 
-func NewGerritCommand() *cobra.Command {
+func NewGerritCommand(client *api.ChromiumClient) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "gerrit",
 		Short: "Interact with Chromium Gerrit CLs",
 		Long:  `View and interact with Chromium Gerrit code reviews.`,
 	}
 	
-	// Add subcommands
-	cmd.AddCommand(newGerritStatusCommand())
-	cmd.AddCommand(newGerritCommentsCommand())
-	cmd.AddCommand(newGerritDiffCommand())
+	cmd.AddCommand(newGerritStatusCommand(client))
+	cmd.AddCommand(newGerritCommentsCommand(client))
+	cmd.AddCommand(newGerritDiffCommand(client))
 	
 	return cmd
 }
 
-func newGerritStatusCommand() *cobra.Command {
+func newGerritStatusCommand(client *api.ChromiumClient) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status <cl_number>",
 		Short: "Get status of a Gerrit CL",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Implement Gerrit status
-			fmt.Println("Gerrit status functionality will be implemented in the Go version")
+			cl := args[0]
+			format, _ := cmd.Flags().GetString("format")
+
+			
+			result, err := client.GetGerritCLStatus(cl)
+			if err != nil {
+				return fmt.Errorf("gerrit status failed: %w", err)
+			}
+
+			switch format {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(result)
+			default:
+				formatter.PrintGerritCLStatus(result)
+			}
+
 			return nil
 		},
 	}
 }
 
-func newGerritCommentsCommand() *cobra.Command {
+func newGerritCommentsCommand(client *api.ChromiumClient) *cobra.Command {
 	return &cobra.Command{
 		Use:   "comments <cl_number>",
 		Short: "Get comments on a Gerrit CL",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Implement Gerrit comments
-			fmt.Println("Gerrit comments functionality will be implemented in the Go version")
+			cl := args[0]
+			format, _ := cmd.Flags().GetString("format")
+
+			
+			result, err := client.GetGerritCLComments(cl)
+			if err != nil {
+				return fmt.Errorf("gerrit comments failed: %w", err)
+			}
+
+			switch format {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(result)
+			default:
+				formatter.PrintGerritCLComments(result)
+			}
+
 			return nil
 		},
 	}
 }
 
-func newGerritDiffCommand() *cobra.Command {
+func newGerritDiffCommand(client *api.ChromiumClient) *cobra.Command {
 	return &cobra.Command{
 		Use:   "diff <cl_number>",
 		Short: "Get diff of a Gerrit CL",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Implement Gerrit diff
-			fmt.Println("Gerrit diff functionality will be implemented in the Go version")
+			cl := args[0]
+			format, _ := cmd.Flags().GetString("format")
+
+			
+			result, err := client.GetGerritCLDiff(cl)
+			if err != nil {
+				return fmt.Errorf("gerrit diff failed: %w", err)
+			}
+
+			switch format {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(result)
+			default:
+				formatter.PrintGerritCLDiff(result)
+			}
+
 			return nil
 		},
 	}

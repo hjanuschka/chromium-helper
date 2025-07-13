@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewSearchCommand() *cobra.Command {
+func NewSearchCommand(client *api.ChromiumClient) *cobra.Command {
 	var filePattern string
 	var limit int
 	var exact bool
@@ -30,9 +30,7 @@ Examples:
 			query := args[0]
 			format, _ := cmd.Flags().GetString("format")
 			
-			// Create API client
-			client := api.NewChromiumClient()
-			
+						
 			// Perform search
 			results, err := client.SearchCode(query, &api.SearchOptions{
 				FilePattern: filePattern,
