@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
+	"os"
 	"strings"
 	"time"
-
-	"github.com/PuerkitoBio/goquery"
 )
 
 const (
@@ -19,17 +17,25 @@ const (
 	searchBaseURL   = "https://source.chromium.org/_/chromium/chromium/src/+/"
 	githubV8API     = "https://api.github.com/repos/v8/v8/contents/"
 	webrtcGitiles   = "https://webrtc.googlesource.com/src/+/main/"
+	batchAPIURL     = "https://grimoireoss-pa.clients6.google.com/batch"
+	defaultAPIKey   = "AIzaSyCqPSptx9mClE5NU4cpfzr6cgdO_phV1lM"
 )
 
 type ChromiumClient struct {
 	httpClient *http.Client
+	apiKey     string
 }
 
 func NewChromiumClient() *ChromiumClient {
+	apiKey := os.Getenv("CHROMIUM_SEARCH_API_KEY")
+	if apiKey == "" {
+		apiKey = defaultAPIKey
+	}
 	return &ChromiumClient{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		apiKey: apiKey,
 	}
 }
 
@@ -54,85 +60,227 @@ type SearchMatch struct {
 }
 
 func (c *ChromiumClient) SearchCode(query string, opts *SearchOptions) (*SearchResult, error) {
-	// Build search URL
-	params := url.Values{}
-	params.Set("q", query)
-	
-	if opts != nil {
-		if opts.FilePattern != "" {
-			params.Set("file", opts.FilePattern)
-		}
-		if opts.Exact {
-			params.Set("type", "exact")
-		}
+	// Build search query
+	searchQuery := query
+	if opts != nil && opts.FilePattern != "" {
+		searchQuery = fmt.Sprintf("file:%s %s", opts.FilePattern, searchQuery)
 	}
 	
-	searchURL := fmt.Sprintf("%ssearch?%s", searchBaseURL, params.Encode())
+	limit := 20
+	if opts != nil && opts.Limit > 0 {
+		limit = opts.Limit
+	}
+	
+	// Call the Chromium Search API
+	apiResponse, err := c.callChromiumSearchAPI(searchQuery, limit)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Parse the response
+	return c.parseChromiumAPIResponse(apiResponse)
+}
+
+func (c *ChromiumClient) callChromiumSearchAPI(query string, limit int) (map[string]interface{}, error) {
+	// Create search payload
+	searchPayload := map[string]interface{}{
+		"queryString": query,
+		"searchOptions": map[string]interface{}{
+			"enableDiagnostics":           false,
+			"exhaustive":                  false,
+			"numberOfContextLines":        1,
+			"pageSize":                    min(limit, 25),
+			"pageToken":                   "",
+			"pathPrefix":                  "",
+			"repositoryScope": map[string]interface{}{
+				"root": map[string]interface{}{
+					"ossProject":      "chromium",
+					"repositoryName":  "chromium/src",
+				},
+			},
+			"retrieveMultibranchResults":  true,
+			"savedQuery":                  "",
+			"scoringModel":                "",
+			"showPersonalizedResults":     false,
+			"suppressGitLegacyResults":    false,
+		},
+		"snippetOptions": map[string]interface{}{
+			"minSnippetLinesPerFile": 10,
+			"minSnippetLinesPerPage": 60,
+			"numberOfContextLines":   1,
+		},
+	}
+	
+	// Generate boundary for multipart request
+	boundary := fmt.Sprintf("batch%d%d", time.Now().Unix(), time.Now().Nanosecond())
+	
+	// Create multipart body
+	payloadJSON, err := json.Marshal(searchPayload)
+	if err != nil {
+		return nil, err
+	}
+	
+	multipartBody := strings.Join([]string{
+		"--" + boundary,
+		"Content-Type: application/http",
+		fmt.Sprintf("Content-ID: <response-%s+gapiRequest@googleapis.com>", boundary),
+		"",
+		fmt.Sprintf("POST /v1/contents/search?alt=json&key=%s", c.apiKey),
+		"sessionid: " + generateRandomID(),
+		"actionid: " + generateRandomID(),
+		"X-JavaScript-User-Agent: google-api-javascript-client/1.1.0",
+		"X-Requested-With: XMLHttpRequest",
+		"Content-Type: application/json",
+		"X-Goog-Encode-Response-If-Executable: base64",
+		"",
+		string(payloadJSON),
+		"--" + boundary + "--",
+		"",
+	}, "\r\n")
 	
 	// Make request
-	resp, err := c.httpClient.Get(searchURL)
+	req, err := http.NewRequest("POST", batchAPIURL+"?%24ct=multipart%2Fmixed%3B%20boundary%3D"+boundary, strings.NewReader(multipartBody))
 	if err != nil {
-		return nil, fmt.Errorf("search request failed: %w", err)
+		return nil, err
+	}
+	
+	req.Header.Set("accept", "*/*")
+	req.Header.Set("accept-language", "en-US,en;q=0.9")
+	req.Header.Set("cache-control", "no-cache")
+	req.Header.Set("content-type", "text/plain; charset=UTF-8")
+	req.Header.Set("origin", "https://source.chromium.org")
+	req.Header.Set("pragma", "no-cache")
+	req.Header.Set("referer", "https://source.chromium.org/")
+	req.Header.Set("sec-fetch-dest", "empty")
+	req.Header.Set("sec-fetch-mode", "cors")
+	req.Header.Set("sec-fetch-site", "cross-site")
+	req.Header.Set("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+	
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("search failed with status %d", resp.StatusCode)
+		return nil, fmt.Errorf("API request failed: %d %s", resp.StatusCode, resp.Status)
 	}
 	
-	// Parse response
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 	
-	// Remove XSSI prefix if present
-	jsonStr := strings.TrimPrefix(string(body), ")]}'\n")
+	// Extract JSON from multipart response
+	responseText := string(body)
+	jsonStart := strings.Index(responseText, "{")
+	jsonEnd := strings.LastIndex(responseText, "}")
 	
-	var apiResp struct {
-		SearchResponse []struct {
-			Matches []struct {
-				Path     string `json:"path"`
-				LineNum  int    `json:"line_num"`
-				Line     string `json:"line"`
-				Context  struct {
-					Before []string `json:"before"`
-					After  []string `json:"after"`
-				} `json:"context"`
-			} `json:"matches"`
-		} `json:"search_response"`
+	if jsonStart < 0 || jsonEnd < 0 || jsonEnd < jsonStart {
+		return nil, fmt.Errorf("could not parse API response")
 	}
 	
-	if err := json.Unmarshal([]byte(jsonStr), &apiResp); err != nil {
-		// Fallback to HTML parsing if JSON fails
-		return c.parseSearchHTML(string(body), query, opts)
+	jsonStr := responseText[jsonStart : jsonEnd+1]
+	
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON response: %w", err)
 	}
 	
-	// Convert to our format
+	return result, nil
+}
+
+func (c *ChromiumClient) parseChromiumAPIResponse(apiResponse map[string]interface{}) (*SearchResult, error) {
 	result := &SearchResult{
-		Query:   query,
+		Query:   "",
 		Results: []SearchMatch{},
 	}
 	
-	count := 0
-	limit := 100
-	if opts != nil && opts.Limit > 0 {
-		limit = opts.Limit
+	// Debug: print the response structure
+	// fmt.Printf("API Response: %+v\n", apiResponse)
+	
+	searchResults, ok := apiResponse["searchResults"].([]interface{})
+	if !ok {
+		return result, nil
 	}
 	
-	for _, resp := range apiResp.SearchResponse {
-		for _, match := range resp.Matches {
-			if count >= limit {
-				break
+	for _, searchResult := range searchResults {
+		searchResultMap, ok := searchResult.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		
+		fileSearchResult, ok := searchResultMap["fileSearchResult"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		
+		fileSpec, ok := fileSearchResult["fileSpec"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		
+		filePath, _ := fileSpec["path"].(string)
+		
+		// Get snippets
+		snippets, ok := fileSearchResult["snippets"].([]interface{})
+		if !ok {
+			continue
+		}
+		
+		for _, snippet := range snippets {
+			snippetMap, ok := snippet.(map[string]interface{})
+			if !ok {
+				continue
 			}
 			
-			result.Results = append(result.Results, SearchMatch{
-				File:    match.Path,
-				Line:    match.LineNum,
-				Content: strings.TrimSpace(match.Line),
-				Context: append(match.Context.Before, match.Context.After...),
-			})
-			count++
+			// Get snippet lines
+			snippetLines, ok := snippetMap["snippetLines"].([]interface{})
+			if !ok {
+				continue
+			}
+			
+			// Find the primary match line (the one with ranges)
+			var primaryLineNum int
+			var contextLines []string
+			
+			for _, line := range snippetLines {
+				lineMap, ok := line.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				
+				lineText, _ := lineMap["lineText"].(string)
+				lineNumStr, _ := lineMap["lineNumber"].(string)
+				ranges, hasRanges := lineMap["ranges"].([]interface{})
+				
+				// Parse line number
+				lineNum := 0
+				if lineNumStr != "" {
+					fmt.Sscanf(lineNumStr, "%d", &lineNum)
+				}
+				
+				if hasRanges && len(ranges) > 0 && primaryLineNum == 0 {
+					// This is the primary match line
+					primaryLineNum = lineNum
+				}
+				
+				// Add to context
+				if hasRanges && len(ranges) > 0 {
+					contextLines = append(contextLines, "➤ "+lineText)
+				} else {
+					contextLines = append(contextLines, "  "+lineText)
+				}
+			}
+			
+			if primaryLineNum > 0 {
+				result.Results = append(result.Results, SearchMatch{
+					File:    filePath,
+					Line:    primaryLineNum,
+					Content: strings.Join(contextLines, "\n"),
+					Context: []string{}, // Context is embedded in Content for now
+				})
+			}
 		}
 	}
 	
@@ -140,40 +288,22 @@ func (c *ChromiumClient) SearchCode(query string, opts *SearchOptions) (*SearchR
 	return result, nil
 }
 
-func (c *ChromiumClient) parseSearchHTML(html, query string, opts *SearchOptions) (*SearchResult, error) {
-	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
-	if err != nil {
-		return nil, err
+func generateRandomID() string {
+	const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, 12)
+	for i := range b {
+		b[i] = chars[time.Now().UnixNano()%int64(len(chars))]
 	}
-	
-	result := &SearchResult{
-		Query:   query,
-		Results: []SearchMatch{},
-	}
-	
-	// Parse search results from HTML
-	doc.Find(".search-result").Each(func(i int, s *goquery.Selection) {
-		if opts != nil && opts.Limit > 0 && i >= opts.Limit {
-			return
-		}
-		
-		file := s.Find(".file-path").Text()
-		lineStr := s.Find(".line-number").Text()
-		content := s.Find(".code-line").Text()
-		
-		var line int
-		fmt.Sscanf(lineStr, "%d", &line)
-		
-		result.Results = append(result.Results, SearchMatch{
-			File:    file,
-			Line:    line,
-			Content: strings.TrimSpace(content),
-		})
-	})
-	
-	result.Total = len(result.Results)
-	return result, nil
+	return string(b)
 }
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 
 // File operations
 type FileOptions struct {
@@ -425,12 +555,43 @@ func (c *ChromiumClient) FindSymbol(symbol string, opts *SymbolOptions) (*Symbol
 			Type:    "reference", // Default
 		}
 		
-		// Simple heuristic to detect definitions
-		if strings.Contains(match.Content, "class "+symbol) ||
-			strings.Contains(match.Content, "struct "+symbol) ||
-			strings.Contains(match.Content, "enum "+symbol) ||
-			strings.Contains(match.Content, "typedef") {
-			symbolMatch.Type = "definition"
+		// Heuristic to detect definitions
+		content := match.Content
+		isDefinition := false
+		
+		// Check for class/struct/enum definitions
+		if strings.Contains(content, "class "+symbol) ||
+			strings.Contains(content, "struct "+symbol) ||
+			strings.Contains(content, "enum "+symbol) {
+			isDefinition = true
+			symbolMatch.Type = "class/struct/enum definition"
+		}
+		
+		// Check for function definitions (return_type Symbol::Method or Symbol::Method()
+		if strings.Contains(content, symbol+"(") || strings.Contains(content, symbol+" (") {
+			// Check if it's preceded by a type (function definition)
+			beforeSymbol := strings.Split(content, symbol)[0]
+			if strings.Contains(beforeSymbol, "* ") || strings.Contains(beforeSymbol, "& ") ||
+				strings.Contains(beforeSymbol, "> ") || strings.Contains(beforeSymbol, " ") {
+				// Likely a function definition
+				isDefinition = true
+				symbolMatch.Type = "function definition"
+			}
+		}
+		
+		// Check for constructor definitions
+		if strings.Contains(content, symbol+"::"+symbol) {
+			isDefinition = true
+			symbolMatch.Type = "constructor definition"
+		}
+		
+		// Check for typedef
+		if strings.Contains(content, "typedef") && strings.Contains(content, symbol) {
+			isDefinition = true
+			symbolMatch.Type = "typedef"
+		}
+		
+		if isDefinition {
 			result.Definitions = append(result.Definitions, symbolMatch)
 		} else {
 			result.References = append(result.References, symbolMatch)
