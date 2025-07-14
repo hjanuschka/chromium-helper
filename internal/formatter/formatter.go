@@ -6,199 +6,176 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/hjanuschka/chromium-helper/internal/api"
 	"github.com/olekukonko/tablewriter"
+	"github.com/ttacon/chalk"
 )
 
 var (
-	fileColor    = color.New(color.FgCyan)
-	lineColor    = color.New(color.FgYellow)
-	matchColor   = color.New(color.FgGreen, color.Bold)
-	headerColor  = color.New(color.FgMagenta, color.Bold)
-	dirColor     = color.New(color.FgBlue, color.Bold)
-	sizeColor    = color.New(color.FgWhite, color.Faint)
-	sourceColor  = color.New(color.FgRed)
+	fileColor   = chalk.Cyan
+	lineColor   = chalk.Yellow
+	matchColor  = chalk.Green
+	headerColor = chalk.Magenta
+	dirColor    = chalk.Blue
+	sizeColor   = chalk.White
+	sourceColor = chalk.Red
 )
 
 // Search results formatting
 func PrintSearchResultsTable(result *api.SearchResult) {
-	fmt.Printf("\n%s\n", headerColor.Sprintf("Search Results for: %s", result.Query))
-	fmt.Printf("Found %d matches\n\n", result.Total)
-	
 	if len(result.Results) == 0 {
-		fmt.Println("No results found.")
+		fmt.Println(chalk.Yellow.Color("No results found"))
 		return
 	}
-	
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"File", "Line", "Content"})
-	table.SetAutoWrapText(false)
-	table.SetRowLine(true)
-	
-	for _, match := range result.Results {
-		table.Append([]string{
-			fileColor.Sprint(match.File),
-			lineColor.Sprint(match.Line),
-			strings.TrimSpace(match.Content),
-		})
+
+	fmt.Printf("%s\n\n", chalk.Cyan.Color(fmt.Sprintf("Found %d results:", len(result.Results))))
+
+	for i, match := range result.Results {
+		greenBold := chalk.Green.NewStyle().WithTextStyle(chalk.Bold)
+		fmt.Printf("%s\n", greenBold.Style(fmt.Sprintf("%d. %s:%d", i+1, match.File, match.Line)))
+		fmt.Printf("%s\n", chalk.White.Color("───────────────────────────────"))
+		fmt.Println(match.Content)
+		url := fmt.Sprintf("https://source.chromium.org/chromium/chromium/src/+/main:%s;l=%d", match.File, match.Line)
+		fmt.Printf("%s\n\n", chalk.Blue.Color(fmt.Sprintf("🔗 %s", url)))
 	}
-	
-	table.Render()
 }
 
 func PrintSearchResultsPlain(result *api.SearchResult) {
-	fmt.Printf("Search Results for: %s\n", result.Query)
-	fmt.Printf("Found %d matches\n\n", result.Total)
-	
-	for _, match := range result.Results {
-		fmt.Printf("%s:%d: %s\n", 
-			match.File, 
-			match.Line, 
-			strings.TrimSpace(match.Content))
-	}
+	PrintSearchResultsTable(result)
 }
 
 // File content formatting
 func PrintFileContentTable(content *api.FileContent) {
-	fmt.Printf("\n%s\n", headerColor.Sprintf("File: %s", content.Path))
-	
-	if content.Source != "" && content.Source != "chromium" {
-		fmt.Printf("%s\n", sourceColor.Sprintf("Source: %s", getSourceDescription(content.Source)))
+	boldCyan := chalk.Cyan.NewStyle().WithTextStyle(chalk.Bold)
+	gray := chalk.White.NewStyle()
+	yellow := chalk.Yellow.NewStyle()
+	blue := chalk.Blue.NewStyle()
+
+	fmt.Printf("%s\n", boldCyan.Style(fmt.Sprintf("File: %s", content.Path)))
+	fmt.Printf("%s\n", gray.Style(fmt.Sprintf("Total lines: %d | Displayed: %d", content.TotalLines, content.DisplayedLines)))
+
+	if content.LineStart > 0 {
+		lineEndStr := ""
+		if content.LineEnd > 0 {
+			lineEndStr = fmt.Sprintf("-%d", content.LineEnd)
+		} else {
+			lineEndStr = "+"
+		}
+		fmt.Printf("%s\n", gray.Style(fmt.Sprintf("Lines: %d%s", content.LineStart, lineEndStr)))
 	}
-	
-	totalLines := len(content.Lines)
-	fmt.Printf("Total lines: %d\n\n", totalLines)
-	
-	// Print content with line numbers
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Line", "Content"})
-	table.SetAutoWrapText(false)
-	table.SetBorder(false)
-	table.SetColumnSeparator("|")
-	
+
+	if content.Source != "" {
+		fmt.Printf("%s\n", yellow.Style(fmt.Sprintf("📌 Source: %s", getSourceDescription(content.Source))))
+	}
+
+	fmt.Printf("%s\n", blue.Style(fmt.Sprintf("🔗 %s", content.BrowserUrl)))
+	if content.GithubUrl != "" {
+		fmt.Printf("%s\n", blue.Style(fmt.Sprintf("🔗 GitHub: %s", content.GithubUrl)))
+	}
+	if content.WebrtcUrl != "" {
+		fmt.Printf("%s\n", blue.Style(fmt.Sprintf("🔗 WebRTC: %s", content.WebrtcUrl)))
+	}
+
+	fmt.Println()
+	fmt.Printf("%s\n", gray.Style("Content:"))
+	fmt.Printf("%s\n", strings.Repeat("─", 80))
+
 	for i, line := range content.Lines {
-		lineNum := i + 1
-		table.Append([]string{
-			lineColor.Sprintf("%4d", lineNum),
-			line,
-		})
+		lineNum := content.LineStart + i
+		if content.LineStart == 0 {
+			lineNum = i + 1
+		}
+		fmt.Printf("%s %s\n", gray.Style(fmt.Sprintf("%4d:", lineNum)), line)
 	}
-	
-	table.Render()
+	fmt.Printf("%s\n", strings.Repeat("─", 80))
 }
 
 func PrintFileContentPlain(content *api.FileContent) {
-	fmt.Printf("File: %s\n", content.Path)
-	
-	if content.Source != "" && content.Source != "chromium" {
-		fmt.Printf("Source: %s\n", getSourceDescription(content.Source))
-	}
-	
-	fmt.Printf("Total lines: %d\n\n", len(content.Lines))
-	
-	for i, line := range content.Lines {
-		fmt.Printf("%4d %s\n", i+1, line)
-	}
+	PrintFileContentTable(content) // Same formatting for plain and table for files
 }
 
 // Symbol results formatting
 func PrintSymbolResultsTable(result *api.SymbolResult) {
-	fmt.Printf("\n%s\n", headerColor.Sprintf("Symbol: %s", result.Symbol))
-	fmt.Printf("Found %d definitions and %d references\n\n", 
+	fmt.Printf("\nSymbol: %s\n", result.Symbol)
+	fmt.Printf("Found %d definitions and %d references\n\n",
 		len(result.Definitions), len(result.References))
-	
+
 	if len(result.Definitions) > 0 {
-		fmt.Println(headerColor.Sprint("Definitions:"))
+		fmt.Println("Definitions:")
 		table := tablewriter.NewWriter(os.Stdout)
 		table.SetHeader([]string{"File", "Line", "Type", "Content"})
 		table.SetAutoWrapText(false)
-			
+
 		for _, def := range result.Definitions {
 			table.Append([]string{
-				fileColor.Sprint(def.File),
-				lineColor.Sprint(def.Line),
+				def.File,
+				fmt.Sprintf("%d", def.Line),
 				def.Type,
 				strings.TrimSpace(def.Content),
 			})
 		}
-		
+
 		table.Render()
 		fmt.Println()
 	}
-	
-	if len(result.References) > 0 && len(result.References) <= 10 {
-		fmt.Println(headerColor.Sprint("References (first 10):"))
+
+	if len(result.References) > 0 {
+		fmt.Println("References:")
 		table := tablewriter.NewWriter(os.Stdout)
 		table.SetHeader([]string{"File", "Line", "Content"})
 		table.SetAutoWrapText(false)
-			
-		count := 0
+
 		for _, ref := range result.References {
-			if count >= 10 {
-				break
-			}
 			table.Append([]string{
-				fileColor.Sprint(ref.File),
-				lineColor.Sprint(ref.Line),
+				ref.File,
+				fmt.Sprintf("%d", ref.Line),
 				strings.TrimSpace(ref.Content),
 			})
-			count++
 		}
-		
+
 		table.Render()
-		
-		if len(result.References) > 10 {
-			fmt.Printf("\n... and %d more references\n", len(result.References)-10)
-		}
 	}
 }
 
 func PrintSymbolResultsPlain(result *api.SymbolResult) {
 	fmt.Printf("Symbol: %s\n", result.Symbol)
-	fmt.Printf("Found %d definitions and %d references\n\n", 
+	fmt.Printf("Found %d definitions and %d references\n\n",
 		len(result.Definitions), len(result.References))
-	
+
 	if len(result.Definitions) > 0 {
 		fmt.Println("Definitions:")
 		for _, def := range result.Definitions {
-			fmt.Printf("%s:%d (%s): %s\n", 
-				def.File, def.Line, def.Type, 
+			fmt.Printf("%s:%d (%s): %s\n",
+				def.File, def.Line, def.Type,
 				strings.TrimSpace(def.Content))
 		}
 		fmt.Println()
 	}
-	
+
 	if len(result.References) > 0 {
 		fmt.Println("References:")
-		count := 0
 		for _, ref := range result.References {
-			if count >= 10 {
-				fmt.Printf("... and %d more references\n", len(result.References)-10)
-				break
-			}
-			fmt.Printf("%s:%d: %s\n", 
-				ref.File, ref.Line, 
+			fmt.Printf("%s:%d: %s\n",
+				ref.File, ref.Line,
 				strings.TrimSpace(ref.Content))
-			count++
 		}
 	}
 }
 
 // Folder listing formatting
 func PrintFolderContentTable(content *api.FolderContent) {
-	fmt.Printf("\n%s\n", headerColor.Sprintf("Contents of %s", content.Path))
-	
+	fmt.Printf("\nContents of %s\n", content.Path)
+
 	if content.Source != "" && content.Source != "chromium" {
-		fmt.Printf("%s\n", sourceColor.Sprintf("Source: %s", getSourceDescription(content.Source)))
+		fmt.Printf("Source: %s\n", getSourceDescription(content.Source))
 	}
-	
+
 	fmt.Printf("Total entries: %d\n\n", len(content.Entries))
-	
+
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader([]string{"Type", "Name", "Size"})
 	table.SetAutoWrapText(false)
-	
+
 	// Separate directories and files
 	var dirs, files []api.FolderEntry
 	for _, entry := range content.Entries {
@@ -208,37 +185,37 @@ func PrintFolderContentTable(content *api.FolderContent) {
 			files = append(files, entry)
 		}
 	}
-	
+
 	// Print directories first
 	for _, dir := range dirs {
 		table.Append([]string{
-			dirColor.Sprint("[DIR]"),
-			dirColor.Sprintf("%s/", dir.Name),
+			"[DIR]",
+			fmt.Sprintf("%s/", dir.Name),
 			"-",
 		})
 	}
-	
+
 	// Then files
 	for _, file := range files {
 		table.Append([]string{
 			"[FILE]",
 			file.Name,
-			sizeColor.Sprint(formatSize(file.Size)),
+			formatSize(file.Size),
 		})
 	}
-	
+
 	table.Render()
 }
 
 func PrintFolderContentPlain(content *api.FolderContent) {
 	fmt.Printf("Contents of %s:\n", content.Path)
-	
+
 	if content.Source != "" && content.Source != "chromium" {
 		fmt.Printf("Source: %s\n", getSourceDescription(content.Source))
 	}
-	
+
 	fmt.Printf("Total entries: %d\n\n", len(content.Entries))
-	
+
 	// Separate directories and files
 	var dirs, files []api.FolderEntry
 	for _, entry := range content.Entries {
@@ -248,12 +225,12 @@ func PrintFolderContentPlain(content *api.FolderContent) {
 			files = append(files, entry)
 		}
 	}
-	
+
 	// Print directories first
 	for _, dir := range dirs {
 		fmt.Printf("[DIR]  %s/\n", dir.Name)
 	}
-	
+
 	// Then files
 	for _, file := range files {
 		fmt.Printf("[FILE] %s (%s)\n", file.Name, formatSize(file.Size))
@@ -354,9 +331,78 @@ func PrintGerritCLDiff(diff *api.GerritCLDiff) {
 	fmt.Println(diff.Diff)
 }
 
+// Gerrit CL File formatting
+func PrintGerritFile(file *api.GerritFile) {
+	fmt.Printf("\nFile: %s\n", file.FilePath)
+	fmt.Printf("CL: %s - %s\n", file.CLId, file.Subject)
+	fmt.Printf("Patchset: %d | Author: %s | Lines: %d\n\n", file.Patchset, file.Author, file.Lines)
+
+	lines := strings.Split(file.Content, "\n")
+	for i, line := range lines {
+		fmt.Printf("%4d  %s\n", i+1, line)
+	}
+}
+
+// Gerrit CL Bots formatting
+func PrintGerritBotsStatus(status *api.GerritBotsStatus) {
+	fmt.Printf("\nTry-Bot Status for CL %s\n", status.CLId)
+	if status.Subject != "" {
+		fmt.Printf("Subject: %s\n\n", status.Subject)
+	}
+
+	fmt.Printf("Summary: ")
+	if status.TotalPassed > 0 {
+		fmt.Printf("✓ %d passed ", status.TotalPassed)
+	}
+	if status.TotalFailed > 0 {
+		fmt.Printf("✗ %d failed ", status.TotalFailed)
+	}
+	if status.TotalRunning > 0 {
+		fmt.Printf("⟳ %d running ", status.TotalRunning)
+	}
+	if status.TotalCanceled > 0 {
+		fmt.Printf("○ %d canceled ", status.TotalCanceled)
+	}
+	fmt.Println("\n")
+
+	if len(status.Bots) == 0 {
+		fmt.Println("No try-bot results found")
+		return
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Bot Name", "Status", "URL"})
+	table.SetAutoWrapText(false)
+	table.SetColWidth(50)
+
+	for _, bot := range status.Bots {
+		statusStr := bot.Status
+		switch bot.Status {
+		case "PASSED":
+			statusStr = "✓ PASSED"
+		case "FAILED":
+			statusStr = "✗ FAILED"
+		case "RUNNING":
+			statusStr = "⟳ RUNNING"
+		case "CANCELED":
+			statusStr = "○ CANCELED"
+		}
+
+		table.Append([]string{
+			bot.Name,
+			statusStr,
+			bot.URL,
+		})
+	}
+
+	table.Render()
+}
+
 func PrintIssueDetails(issue *api.Issue) {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader([]string{"Field", "Value"})
+
+	table.Append([]string{"ID", issue.ID})
 	table.SetAutoWrapText(false)
 
 	data := [][]string{
@@ -378,9 +424,45 @@ func PrintIssueDetails(issue *api.Issue) {
 	table.Render()
 }
 
+// Issue search results formatting
+func PrintIssueSearchResults(results *api.IssueSearchResults) {
+	if len(results.Results) == 0 {
+		fmt.Println("No issues found")
+		return
+	}
+
+	fmt.Printf("Found %d issues (showing %d)\n\n", results.TotalCount, len(results.Results))
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"ID", "Title", "Status", "Priority", "Type", "Reporter", "Modified"})
+	table.SetAutoWrapText(true)
+	table.SetColWidth(50)
+
+	for _, issue := range results.Results {
+		table.Append([]string{
+			issue.ID,
+			truncateString(issue.Title, 50),
+			issue.Status,
+			issue.Priority,
+			issue.Type,
+			issue.Reporter,
+			issue.Modified,
+		})
+	}
+
+	table.Render()
+}
+
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
+}
+
 // Owners formatting
 func PrintOwnersTable(result *api.OwnersResult) {
-	fmt.Printf("\n%s\n", headerColor.Sprintf("OWNERS for: %s", result.FilePath))
+	fmt.Printf("\nOWNERS for: %s\n", result.FilePath)
 
 	if len(result.OwnerFiles) == 0 {
 		fmt.Println("No OWNERS files found.")
@@ -388,7 +470,7 @@ func PrintOwnersTable(result *api.OwnersResult) {
 	}
 
 	for _, ownerFile := range result.OwnerFiles {
-		fmt.Printf("\n%s\n", fileColor.Sprintf("OWNERS File: %s", ownerFile.Path))
+		fmt.Printf("\nOWNERS File: %s\n", ownerFile.Path)
 		fmt.Println(strings.Repeat("-", 40))
 		fmt.Println(ownerFile.Content)
 	}
@@ -413,6 +495,3 @@ func PrintOwnersJSON(result *api.OwnersResult) {
 	}
 	fmt.Println(string(out))
 }
-
-
-

@@ -1,0 +1,14 @@
++----------+--------------------------------------------------------------+
+|  FIELD   |                            VALUE                             |
++----------+--------------------------------------------------------------+
+| ID       |                                                    392931073 |
+| Title    | Benchmark third_party/crc32c and replace with Abseil version |
+| Status   | ASSIGNED                                                     |
+| Priority | P3                                                           |
+| Type     | Internal Cleanup                                             |
+| Severity | S4                                                           |
+| Reporter | pk...@chromium.org                                           |
+| Assignee | pk...@chromium.org                                           |
+| Created  |                                                              |
+| Modified |                                                              |
++----------+--------------------------------------------------------------+

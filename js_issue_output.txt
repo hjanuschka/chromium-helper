@@ -1,0 +1,38 @@
+Issue 392931073: Benchmark third_party/crc32c and replace with Abseil version
+════════════════════════════════════════════════════════════════════════════════
+
+Status: NEW
+Priority: P4
+Type: Type 4
+Severity: Severity 5
+Reporter: pk...@chromium.org
+Assignee: pk...@chromium.org
+Created: Unknown
+Modified: Unknown
+Data source: direct-api
+
+📝 Description:
+────────────────────────────────────────
+  We'd like to replace third_party/crc32c with the Abseil crc32c library. Before
+  doing this, we should benchmark to ensure it isn't a perf regression. Abseil's
+  code ships with a benchmark, that's probably sufficient.
+
+💬 Comments (3):
+────────────────────────────────────────
+Comment #1
+👤 pk...@chromium.org • 1/28/2025 10:59:45 PM
+  We'd like to replace third_party/crc32c with the Abseil crc32c library. Before
+  doing this, we should benchmark to ensure it isn't a perf regression. Abseil's
+  code ships with a benchmark, that's probably sufficient.
+┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
+Comment #2
+👤 pk...@chromium.org • 4/11/2025 5:51:33 PM
+  Unassigning most existing bugs as I have been laid off.
+┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
+Comment #3
+👤 dt...@chromium.org • 4/15/2025 10:01:46 PM
+  Over to storage team that owns crc32c
+
+════════════════════════════════════════════════════════════════════════════════
+🌐 View issue: https://issues.chromium.org/issues/392931073
+

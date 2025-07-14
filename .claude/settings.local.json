@@ -1,4 +1,10 @@
 {
+  "mcpServers": {
+    "browsermcp": {
+      "command": "npx",
+      "args": ["@browsermcp/mcp@latest"]
+    }
+  },
   "permissions": {
     "allow": [
       "Bash(npm install)",

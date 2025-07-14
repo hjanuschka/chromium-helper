@@ -1,0 +1,258 @@
+Symbol: main
+
+🎯 Symbol Definitions:
+1. third_party/libxml/src/lintmain.c:12
+  int
+➤ main(int argc, char **argv) {
+      return(xmllintMain(argc, (const char **) argv, stderr, NULL));
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/libxml/src/lintmain.c;l=12
+
+2. ios/web_view/shell/shell_exe_main.m:9
+➤ int main(int argc, char* argv[]) {
+    @autoreleasepool {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:ios/web_view/shell/shell_exe_main.m;l=9
+
+3. out/win-Debug/gen/chrome/browser/resources/pdf/tsc/main_print.js:37
+   */
+➤ function main() {
+      // Set up an event listener to catch scripting messages which are sent prior
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/win-Debug/gen/chrome/browser/resources/pdf/tsc/main_print.js;l=37
+
+4. third_party/angle/third_party/llvm/src/lldb/test/API/commands/watchpoints/watchpoint_commands/condition/main.cpp:10
+➤ int main(int argc, char** argv) {
+      int local = 0;
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/angle/third_party/llvm/src/lldb/test/API/commands/watchpoints/watchpoint_commands/condition/main.cpp;l=10
+
+5. third_party/libc++/src/test/std/containers/container.adaptors/flat.map/flat.map.access/index_transparent.pass.cpp:124
+➤ int main(int, char**) {
+    test();
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/libc++/src/test/std/containers/container.adaptors/flat.map/flat.map.access/index_transparent.pass.cpp;l=124
+
+6. third_party/angle/third_party/meson/test cases/cmake/13 system includes/main.cpp:6
+➤ int main(void) {
+    cmModClass obj("Hello");
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/angle/third_party/meson/test cases/cmake/13 system includes/main.cpp;l=6
+
+7. third_party/angle/third_party/meson/test cases/unit/30 shared_mod linking/main.c:9
+➤ int main(int argc, char **arg) {
+      return func();
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/angle/third_party/meson/test cases/unit/30 shared_mod linking/main.c;l=9
+
+8. third_party/dawn/third_party/libc++/src/test/std/containers/container.adaptors/flat.map/flat.map.cons/initializer_list.pass.cpp:38
+➤ int main(int, char**) {
+    {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/dawn/third_party/libc++/src/test/std/containers/container.adaptors/flat.map/flat.map.cons/initializer_list.pass.cpp;l=38
+
+9. third_party/angle/third_party/libc++/src/test/std/containers/container.adaptors/flat.map/flat.map.cons/sorted_initializer_list.pass.cpp:194
+➤ int main(int, char**) {
+    test();
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/angle/third_party/libc++/src/test/std/containers/container.adaptors/flat.map/flat.map.cons/sorted_initializer_list.pass.cpp;l=194
+
+10. third_party/devtools-frontend/src/extensions/cxx_debugging/third_party/llvm/src/lldb/test/API/macosx/DBGSourcePathRemapping/Inputs/main.c:3
+➤ int main()
+  {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/devtools-frontend/src/extensions/cxx_debugging/third_party/llvm/src/lldb/test/API/macosx/DBGSourcePathRemapping/Inputs/main.c;l=3
+
+🏗️ Class Definitions:
+1. out/mac-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:69
+  // @generated_from: viz.mojom.VizMain
+➤ class VizMain
+      : public VizMainInterfaceBase {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/mac-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=69
+
+2. out/mac-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:143
+  // @generated_from: viz.mojom.VizMain
+➤ class  VizMainProxy
+      : public VizMain {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/mac-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=143
+
+3. out/mac-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:171
+  };
+➤ class  VizMainStubDispatch {
+   public:
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/mac-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=171
+
+4. out/mac-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:182
+                mojo::RawPtrImplRefTraits<VizMain>>
+➤ class VizMainStub
+      : public mojo::MessageReceiverWithResponderStatus {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/mac-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=182
+
+5. out/win-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:70
+  // @generated_from: viz.mojom.VizMain
+➤ class VizMain
+      : public VizMainInterfaceBase {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/win-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=70
+
+6. out/win-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:151
+  // @generated_from: viz.mojom.VizMain
+➤ class  VizMainProxy
+      : public VizMain {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/win-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=151
+
+7. out/win-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:182
+  };
+➤ class  VizMainStubDispatch {
+   public:
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/win-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=182
+
+8. out/win-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:193
+                mojo::RawPtrImplRefTraits<VizMain>>
+➤ class VizMainStub
+      : public mojo::MessageReceiverWithResponderStatus {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/win-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=193
+
+9. out/linux-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:69
+  // @generated_from: viz.mojom.VizMain
+➤ class VizMain
+      : public VizMainInterfaceBase {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/linux-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=69
+
+10. out/linux-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:143
+  // @generated_from: viz.mojom.VizMain
+➤ class  VizMainProxy
+      : public VizMain {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/linux-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=143
+
+11. out/linux-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:171
+  };
+➤ class  VizMainStubDispatch {
+   public:
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/linux-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=171
+
+12. out/linux-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:182
+                mojo::RawPtrImplRefTraits<VizMain>>
+➤ class VizMainStub
+      : public mojo::MessageReceiverWithResponderStatus {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/linux-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=182
+
+13. chromecast/app/cast_main_delegate.h:31
+➤ class CastMainDelegate : public content::ContentMainDelegate {
+   public:
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:chromecast/app/cast_main_delegate.h;l=31
+
+14. out/fuchsia-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:69
+  // @generated_from: viz.mojom.VizMain
+➤ class VizMain
+      : public VizMainInterfaceBase {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/fuchsia-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=69
+
+15. out/fuchsia-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:122
+  // @generated_from: viz.mojom.VizMain
+➤ class  VizMainProxy
+      : public VizMain {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/fuchsia-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=122
+
+16. out/fuchsia-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:141
+  };
+➤ class  VizMainStubDispatch {
+   public:
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/fuchsia-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=141
+
+17. out/fuchsia-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h:152
+                mojo::RawPtrImplRefTraits<VizMain>>
+➤ class VizMainStub
+      : public mojo::MessageReceiverWithResponderStatus {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/fuchsia-Debug/gen/services/viz/privileged/mojom/viz_main.mojom-blink.h;l=152
+
+⚙️ Function Definitions:
+1. third_party/libxml/src/lintmain.c:12
+  int
+➤ main(int argc, char **argv) {
+      return(xmllintMain(argc, (const char **) argv, stderr, NULL));
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/libxml/src/lintmain.c;l=12
+
+2. ios/web_view/shell/shell_exe_main.m:9
+➤ int main(int argc, char* argv[]) {
+    @autoreleasepool {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:ios/web_view/shell/shell_exe_main.m;l=9
+
+3. out/win-Debug/gen/chrome/browser/resources/pdf/tsc/main_print.js:37
+   */
+➤ function main() {
+      // Set up an event listener to catch scripting messages which are sent prior
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:out/win-Debug/gen/chrome/browser/resources/pdf/tsc/main_print.js;l=37
+
+4. third_party/angle/third_party/llvm/src/lldb/test/API/commands/watchpoints/watchpoint_commands/condition/main.cpp:10
+➤ int main(int argc, char** argv) {
+      int local = 0;
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/angle/third_party/llvm/src/lldb/test/API/commands/watchpoints/watchpoint_commands/condition/main.cpp;l=10
+
+5. third_party/libc++/src/test/std/containers/container.adaptors/flat.map/flat.map.access/index_transparent.pass.cpp:124
+➤ int main(int, char**) {
+    test();
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/libc++/src/test/std/containers/container.adaptors/flat.map/flat.map.access/index_transparent.pass.cpp;l=124
+
+📚 Usage Examples:
+Found 123237 total usage matches across the codebase
+
+1. third_party/dawn/third_party/libc++/src/test/std/containers/container.adaptors/flat.map/flat.map.cons/initializer_list.pass.cpp:38
+➤ int main(int, char**) {
+    {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/dawn/third_party/libc++/src/test/std/containers/container.adaptors/flat.map/flat.map.cons/initializer_list.pass.cpp;l=38
+
+2. third_party/devtools-frontend/src/extensions/cxx_debugging/third_party/llvm/src/flang/runtime/FortranMain/Fortran_main.c:13
+  /* main entry into PROGRAM */
+➤ void _QQmain(void);
+  
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/devtools-frontend/src/extensions/cxx_debugging/third_party/llvm/src/flang/runtime/FortranMain/Fortran_main.c;l=13
+
+3. third_party/devtools-frontend/src/extensions/cxx_debugging/third_party/llvm/src/flang/runtime/FortranMain/Fortran_main.c:18
+  /* C main stub */
+➤ int main(int argc, const char *argv[], const char *envp[]) {
+    RTNAME(ProgramStart)(argc, argv, envp, _QQEnvironmentDefaults);
+➤   _QQmain();
+    RTNAME(ProgramEndStatement)();
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/devtools-frontend/src/extensions/cxx_debugging/third_party/llvm/src/flang/runtime/FortranMain/Fortran_main.c;l=18
+
+4. third_party/dawn/third_party/angle/third_party/llvm/src/libcxx/test/libcxx/containers/containers.adaptors/flat.map/container_stability.pass.cpp:33
+➤ int main(int, char**) {
+    std::mt19937 randomness;
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/dawn/third_party/angle/third_party/llvm/src/libcxx/test/libcxx/containers/containers.adaptors/flat.map/container_stability.pass.cpp;l=33
+
+5. third_party/webrtc/examples/stunserver/stunserver_main.cc:21
+➤ int main(int argc, char* argv[]) {
+    if (argc != 2) {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/webrtc/examples/stunserver/stunserver_main.cc;l=21
+
+6. third_party/webrtc/examples/stunserver/stunserver_main.cc:33
+➤   webrtc::Thread* pthMain =
+        webrtc::ThreadManager::Instance()->WrapCurrentThread();
+➤   RTC_DCHECK(pthMain);
+  
+    webrtc::AsyncUDPSocket* server_socket =
+➤       webrtc::AsyncUDPSocket::Create(pthMain->socketserver(), server_addr);
+    if (!server_socket) {
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/webrtc/examples/stunserver/stunserver_main.cc;l=33
+
+7. chrome/browser/os_crypt/app_bound_encryption_test_main.cc:77
+➤ int main(int, char**) {
+    base::AtExitManager exit_manager;
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:chrome/browser/os_crypt/app_bound_encryption_test_main.cc;l=77
+
+8. third_party/dawn/third_party/angle/third_party/llvm/src/libcxx/test/std/containers/container.adaptors/flat.map/flat.map.modifiers/emplace_hint.pass.cpp:165
+➤ int main(int, char**) {
+    test<std::vector<int>, std::vector<double>>();
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/dawn/third_party/angle/third_party/llvm/src/libcxx/test/std/containers/container.adaptors/flat.map/flat.map.modifiers/emplace_hint.pass.cpp;l=165
+
+9. third_party/openscreen/src/third_party/libc++/src/test/std/containers/container.adaptors/flat.map/flat.map.access/at_transparent.pass.cpp:96
+➤ int main(int, char**) {
+    test<std::vector<int>, std::vector<double>>();
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/openscreen/src/third_party/libc++/src/test/std/containers/container.adaptors/flat.map/flat.map.access/at_transparent.pass.cpp;l=96
+
+10. third_party/dawn/third_party/libc++/src/test/std/containers/container.adaptors/flat.map/flat.map.operations/lower_bound_transparent.pass.cpp:78
+➤ int main(int, char**) {
+    test<std::vector<std::string>, std::vector<int>>();
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/dawn/third_party/libc++/src/test/std/containers/container.adaptors/flat.map/flat.map.operations/lower_bound_transparent.pass.cpp;l=78
+
+11. third_party/dawn/third_party/angle/third_party/libc++/src/test/std/containers/associative/multimap/multimap.modifiers/insert_node_type_hint.pass.cpp:53
+➤ int main(int, char**) {
+    std::multimap<int, int> m;
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/dawn/third_party/angle/third_party/libc++/src/test/std/containers/associative/multimap/multimap.modifiers/insert_node_type_hint.pass.cpp;l=53
+
+12. third_party/dawn/third_party/abseil-cpp/absl/container/internal/raw_hash_set_probe_benchmark.cc:512
+➤ int main(int argc, char** argv) {
+    // Parse the benchmark flags. Ignore all of them except the regex pattern.
+🔗 https://source.chromium.org/chromium/chromium/src/+/main:third_party/dawn/third_party/abseil-cpp/absl/container/internal/raw_hash_set_probe_benchmark.cc;l=512
+
+
