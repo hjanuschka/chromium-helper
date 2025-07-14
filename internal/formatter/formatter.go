@@ -399,29 +399,145 @@ func PrintGerritBotsStatus(status *api.GerritBotsStatus) {
 }
 
 func PrintIssueDetails(issue *api.Issue) {
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Field", "Value"})
+	// Title
+	titleStyle := chalk.Bold.NewStyle().WithForeground(chalk.Cyan)
+	fmt.Printf("%s\n", titleStyle.Style(fmt.Sprintf("Issue %s: %s", issue.ID, issue.Title)))
+	fmt.Println(strings.Repeat("═", 80))
+	fmt.Println()
 
-	table.Append([]string{"ID", issue.ID})
-	table.SetAutoWrapText(false)
+	// Metadata
+	fmt.Printf("%s %s\n", chalk.Yellow.Color("Status:"), issue.Status)
+	fmt.Printf("%s %s\n", chalk.Yellow.Color("Priority:"), issue.Priority)
+	fmt.Printf("%s %s\n", chalk.Yellow.Color("Type:"), issue.Type)
+	fmt.Printf("%s %s\n", chalk.Yellow.Color("Severity:"), issue.Severity)
+	fmt.Printf("%s %s\n", chalk.Yellow.Color("Reporter:"), issue.Reporter)
+	fmt.Printf("%s %s\n", chalk.Yellow.Color("Assignee:"), getValueOrDefault(issue.Assignee, "Unassigned"))
+	fmt.Printf("%s %s\n", chalk.Yellow.Color("Created:"), getValueOrDefault(issue.Created, "Unknown"))
+	fmt.Printf("%s %s\n", chalk.Yellow.Color("Modified:"), getValueOrDefault(issue.Modified, "Unknown"))
+	fmt.Println()
 
-	data := [][]string{
-		{"Title", issue.Title},
-		{"Status", issue.Status},
-		{"Priority", issue.Priority},
-		{"Type", issue.Type},
-		{"Severity", issue.Severity},
-		{"Reporter", issue.Reporter},
-		{"Assignee", issue.Assignee},
-		{"Created", issue.Created},
-		{"Modified", issue.Modified},
+	// Description
+	if issue.Description != "" {
+		boldYellow := chalk.Yellow.NewStyle().WithTextStyle(chalk.Bold)
+		fmt.Printf("%s\n", boldYellow.Style("📝 Description:"))
+		fmt.Println(strings.Repeat("─", 40))
+		fmt.Println(formatWrappedText(issue.Description, 2))
+		fmt.Println()
 	}
 
-	for _, v := range data {
-		table.Append(v)
+	// Comments
+	if len(issue.Comments) > 0 {
+		boldYellow := chalk.Yellow.NewStyle().WithTextStyle(chalk.Bold)
+		fmt.Printf("%s\n", boldYellow.Style(fmt.Sprintf("💬 Comments (%d):", len(issue.Comments))))
+		fmt.Println(strings.Repeat("─", 40))
+		
+		for i, comment := range issue.Comments {
+			boldGreen := chalk.Green.NewStyle().WithTextStyle(chalk.Bold)
+			fmt.Printf("%s\n", boldGreen.Style(fmt.Sprintf("Comment #%d", i+1)))
+			
+			authorLine := chalk.Blue.Color(fmt.Sprintf("👤 %s", getValueOrDefault(comment.Author, "Unknown")))
+			if comment.Timestamp != "" {
+				authorLine += chalk.White.Color(fmt.Sprintf(" • %s", comment.Timestamp))
+			}
+			fmt.Println(authorLine)
+			fmt.Println()
+			
+			fmt.Println(formatWrappedText(comment.Content, 2))
+			
+			if i < len(issue.Comments)-1 {
+				fmt.Println(chalk.White.Color(strings.Repeat("┈", 30)))
+			}
+		}
+		fmt.Println()
 	}
 
-	table.Render()
+	// Related CLs
+	if len(issue.RelatedCLs) > 0 {
+		boldYellow := chalk.Yellow.NewStyle().WithTextStyle(chalk.Bold)
+		fmt.Printf("%s\n", boldYellow.Style("🔗 Related CLs:"))
+		for _, cl := range issue.RelatedCLs {
+			fmt.Printf("  • CL %s: %s\n", cl, chalk.Blue.Color(fmt.Sprintf("https://chromium-review.googlesource.com/c/chromium/src/+/%s", cl)))
+		}
+		fmt.Println()
+	}
+
+	// Footer
+	fmt.Println(chalk.White.Color(strings.Repeat("═", 80)))
+	fmt.Printf("🌐 View issue: %s\n", chalk.Blue.Color(issue.BrowserURL))
+}
+
+func getValueOrDefault(value, defaultValue string) string {
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+func formatWrappedText(text string, indent int) string {
+	if text == "" {
+		return ""
+	}
+	
+	// Split into paragraphs
+	paragraphs := strings.Split(text, "\n\n")
+	var result []string
+	
+	for _, paragraph := range paragraphs {
+		if strings.TrimSpace(paragraph) == "" {
+			continue
+		}
+		
+		// Wrap long lines
+		lines := strings.Split(paragraph, "\n")
+		for _, line := range lines {
+			wrapped := wrapLine(line, 78-indent)
+			for _, wl := range wrapped {
+				result = append(result, strings.Repeat(" ", indent)+wl)
+			}
+		}
+		
+		// Add blank line between paragraphs
+		if len(result) > 0 && result[len(result)-1] != "" {
+			result = append(result, "")
+		}
+	}
+	
+	// Remove trailing empty line
+	if len(result) > 0 && result[len(result)-1] == "" {
+		result = result[:len(result)-1]
+	}
+	
+	return strings.Join(result, "\n")
+}
+
+func wrapLine(line string, maxWidth int) []string {
+	if len(line) <= maxWidth {
+		return []string{line}
+	}
+	
+	var wrapped []string
+	words := strings.Fields(line)
+	var currentLine strings.Builder
+	
+	for _, word := range words {
+		if currentLine.Len()+len(word)+1 > maxWidth {
+			if currentLine.Len() > 0 {
+				wrapped = append(wrapped, currentLine.String())
+				currentLine.Reset()
+			}
+		}
+		
+		if currentLine.Len() > 0 {
+			currentLine.WriteString(" ")
+		}
+		currentLine.WriteString(word)
+	}
+	
+	if currentLine.Len() > 0 {
+		wrapped = append(wrapped, currentLine.String())
+	}
+	
+	return wrapped
 }
 
 // Issue search results formatting
