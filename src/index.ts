@@ -412,6 +412,29 @@ class ChromiumCodeSearchServer {
             },
           },
           {
+            name: "list_pdfium_gerrit_cls",
+            description: "List PDFium Gerrit CLs from PDFium dashboard (requires authentication cookies)",
+            inputSchema: {
+              type: "object",
+              properties: {
+                query: {
+                  type: "string",
+                  description: "Gerrit search query for PDFium (e.g., 'owner:me', 'status:open', 'change:12345 OR change:67890')",
+                },
+                auth_cookie: {
+                  type: "string",
+                  description: "Authentication cookie string from browser (copy full cookie header value)",
+                },
+                limit: {
+                  type: "number",
+                  description: "Maximum number of CLs to return (default: 25, max: 100)",
+                  default: 25,
+                },
+              },
+              required: ["auth_cookie"],
+            },
+          },
+          {
             name: "find_chromium_owners_file",
             description: "Find OWNERS files for a given file path in Chromium source code by searching up the directory tree",
             inputSchema: {
@@ -507,6 +530,29 @@ class ChromiumCodeSearchServer {
               required: ["folder_path"],
             },
           },
+          {
+            name: "list_gerrit_cls",
+            description: "List Gerrit CLs from Chromium dashboard (requires authentication cookies)",
+            inputSchema: {
+              type: "object",
+              properties: {
+                query: {
+                  type: "string",
+                  description: "Gerrit search query (e.g., 'owner:me', 'status:open', 'change:1234 OR change:5678')",
+                },
+                auth_cookie: {
+                  type: "string",
+                  description: "Authentication cookie string from browser (copy full cookie header value)",
+                },
+                limit: {
+                  type: "number",
+                  description: "Maximum number of CLs to return (default: 25, max: 100)",
+                  default: 25,
+                },
+              },
+              required: ["auth_cookie"],
+            },
+          },
         ],
       };
     });
@@ -560,6 +606,9 @@ class ChromiumCodeSearchServer {
           case "get_pdfium_gerrit_cl_trybot_status":
             result = await this.getPDFiumGerritCLTrybotStatus(args);
             break;
+          case "list_pdfium_gerrit_cls":
+            result = await this.listPDFiumGerritCLs(args);
+            break;
           case "find_chromium_owners_file":
             result = await this.findChromiumOwnersFile(args);
             break;
@@ -574,6 +623,9 @@ class ChromiumCodeSearchServer {
             break;
           case "list_chromium_folder":
             result = await this.listChromiumFolder(args);
+            break;
+          case "list_gerrit_cls":
+            result = await this.listGerritCLs(args);
             break;
           default:
             throw new Error(`Unknown tool: ${name}`);
@@ -4523,6 +4575,304 @@ class ChromiumCodeSearchServer {
       case 'CANCELED': return '⏹️';
       case 'UNKNOWN': return '❓';
       default: return '⚪';
+    }
+  }
+
+  private async listGerritCLs(args: any) {
+    const { query, auth_cookie, limit = 25 } = args;
+    
+    try {
+      // Build the Gerrit API URL
+      let apiUrl = 'https://chromium-review.googlesource.com/changes/?';
+      
+      // Add default options
+      const params = new URLSearchParams();
+      params.append('O', '5000081'); // Same as Gerrit UI - includes DETAILED_ACCOUNTS + LABELS
+      params.append('S', '0'); // Start index
+      
+      // Build the query
+      if (query) {
+        params.append('q', query);
+      } else {
+        // Default to showing user's open CLs
+        params.append('q', 'status:open owner:self');
+      }
+      
+      // Limit results
+      if (limit && limit > 0 && limit <= 100) {
+        params.append('n', limit.toString());
+      }
+      
+      params.append('allow-incomplete-results', 'true');
+      
+      apiUrl += params.toString();
+      
+      // Make the request with authentication cookies
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'Cookie': auth_cookie,
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+      });
+      
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error('Authentication failed. Please ensure your cookie is valid and includes necessary auth tokens (SID, __Secure-1PSID, etc.)');
+        }
+        throw new Error(`Failed to fetch CLs: HTTP ${response.status}`);
+      }
+      
+      const responseText = await response.text();
+      // Remove XSSI prefix
+      const jsonText = responseText.replace(/^\)]}'/, '');
+      const cls = JSON.parse(jsonText);
+      
+      if (!Array.isArray(cls)) {
+        throw new Error('Unexpected response format from Gerrit API');
+      }
+      
+      // Format the results
+      let resultText = `## Gerrit CLs${query ? ` (${query})` : ' (Your Open CLs)'}\n\n`;
+      resultText += `📊 **Found ${cls.length} CL${cls.length !== 1 ? 's' : ''}**\n\n`;
+      
+      if (cls.length === 0) {
+        resultText += `No CLs found matching the query.\n`;
+      } else {
+        for (const cl of cls) {
+          const clNumber = cl._number || cl.id;
+          const status = cl.status || 'UNKNOWN';
+          const statusEmoji = this.getStatusEmoji(status);
+          
+          resultText += `### ${statusEmoji} CL ${clNumber}: ${cl.subject}\n`;
+          resultText += `- **Author:** ${cl.owner?.name || 'Unknown'} (${cl.owner?.email || 'no email'})\n`;
+          resultText += `- **Status:** ${status}\n`;
+          resultText += `- **Created:** ${new Date(cl.created).toLocaleDateString()}\n`;
+          resultText += `- **Updated:** ${new Date(cl.updated).toLocaleDateString()}\n`;
+          
+          if (cl.current_revision_number) {
+            resultText += `- **Patchset:** ${cl.current_revision_number}\n`;
+          }
+          
+          if (cl.insertions || cl.deletions) {
+            resultText += `- **Changes:** +${cl.insertions || 0} / -${cl.deletions || 0}\n`;
+          }
+          
+          if (cl.total_comment_count > 0) {
+            resultText += `- **Comments:** ${cl.total_comment_count} (${cl.unresolved_comment_count} unresolved)\n`;
+          }
+          
+          // Add labels if present
+          if (cl.labels) {
+            const importantLabels = ['Code-Review', 'Commit-Queue', 'Auto-Submit'];
+            const labelText = [];
+            
+            for (const label of importantLabels) {
+              if (cl.labels[label]) {
+                const values = cl.labels[label].all || [];
+                const maxValue = Math.max(...values.map(v => v.value || 0));
+                const minValue = Math.min(...values.map(v => v.value || 0));
+                
+                if (maxValue > 0) {
+                  labelText.push(`${label}: +${maxValue}`);
+                } else if (minValue < 0) {
+                  labelText.push(`${label}: ${minValue}`);
+                }
+              }
+            }
+            
+            if (labelText.length > 0) {
+              resultText += `- **Labels:** ${labelText.join(', ')}\n`;
+            }
+          }
+          
+          resultText += `- **Link:** https://chromium-review.googlesource.com/c/chromium/src/+/${clNumber}\n`;
+          resultText += `\n`;
+        }
+      }
+      
+      resultText += `\n### 📝 Query Tips:\n`;
+      resultText += `- **Your CLs:** \`owner:self\` or \`owner:me\`\n`;
+      resultText += `- **Status:** \`status:open\`, \`status:merged\`, \`status:abandoned\`\n`;
+      resultText += `- **Specific CLs:** \`change:1234 OR change:5678\`\n`;
+      resultText += `- **Reviewer:** \`reviewer:email@chromium.org\`\n`;
+      resultText += `- **Project:** \`project:chromium/src\`\n`;
+      resultText += `- **Branch:** \`branch:main\`\n`;
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: resultText,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to list Gerrit CLs: ${error.message}\n\nMake sure you have provided valid authentication cookies from your browser.`,
+          },
+        ],
+      };
+    }
+  }
+
+  private async listPDFiumGerritCLs(args: any) {
+    const { query, auth_cookie, limit = 25 } = args;
+    
+    try {
+      // Build the PDFium Gerrit API URL
+      let apiUrl = 'https://pdfium-review.googlesource.com/changes/?';
+      
+      // Add default options
+      const params = new URLSearchParams();
+      params.append('O', '5000081'); // Same as Gerrit UI - includes DETAILED_ACCOUNTS + LABELS
+      params.append('S', '0'); // Start index
+      
+      // Build the query
+      if (query) {
+        params.append('q', query);
+      } else {
+        // Default to showing user's open CLs
+        params.append('q', 'status:open owner:self');
+      }
+      
+      // Limit results
+      if (limit && limit > 0 && limit <= 100) {
+        params.append('n', limit.toString());
+      }
+      
+      params.append('allow-incomplete-results', 'true');
+      
+      apiUrl += params.toString();
+      
+      // Make the request with authentication cookies
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'Cookie': auth_cookie,
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+      });
+      
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error('Authentication failed. Please ensure your cookie is valid and includes necessary auth tokens (SID, __Secure-1PSID, etc.)');
+        }
+        throw new Error(`Failed to fetch CLs: HTTP ${response.status}`);
+      }
+      
+      const responseText = await response.text();
+      // Remove XSSI prefix
+      const jsonText = responseText.replace(/^\)]}'/, '');
+      const cls = JSON.parse(jsonText);
+      
+      if (!Array.isArray(cls)) {
+        throw new Error('Unexpected response format from PDFium Gerrit API');
+      }
+      
+      // Format the results
+      let resultText = `## PDFium Gerrit CLs${query ? ` (${query})` : ' (Your Open CLs)'}\n\n`;
+      resultText += `📊 **Found ${cls.length} CL${cls.length !== 1 ? 's' : ''}**\n\n`;
+      
+      if (cls.length === 0) {
+        resultText += `No CLs found matching the query.\n`;
+      } else {
+        // List each CL
+        cls.forEach((cl, index) => {
+          const clNumber = cl._number;
+          const status = this.getStatusEmoji(cl.status);
+          const subject = cl.subject || 'No subject';
+          const owner = cl.owner?.name || 'Unknown';
+          const updated = new Date(cl.updated).toLocaleString();
+          
+          resultText += `### ${index + 1}. ${status} CL ${clNumber}: ${subject}\n`;
+          resultText += `- **Owner:** ${owner}\n`;
+          resultText += `- **Status:** ${cl.status}\n`;
+          resultText += `- **Updated:** ${updated}\n`;
+          
+          if (cl.current_revision_number) {
+            resultText += `- **Patchset:** ${cl.current_revision_number}\n`;
+          }
+          
+          if (cl.insertions || cl.deletions) {
+            resultText += `- **Changes:** +${cl.insertions || 0}/-${cl.deletions || 0}\n`;
+          }
+          
+          if (cl.total_comment_count > 0) {
+            resultText += `- **Comments:** ${cl.total_comment_count} (${cl.unresolved_comment_count} unresolved)\n`;
+          }
+          
+          // Add labels if present
+          if (cl.labels) {
+            const importantLabels = ['Code-Review', 'Commit-Queue', 'Auto-Submit'];
+            const labelText = [];
+            
+            for (const label of importantLabels) {
+              if (cl.labels[label]) {
+                const values = cl.labels[label].all || [];
+                const maxValue = Math.max(...values.map((v: any) => v.value || 0));
+                const minValue = Math.min(...values.map((v: any) => v.value || 0));
+                
+                if (maxValue > 0) {
+                  labelText.push(`${label}: +${maxValue}`);
+                } else if (minValue < 0) {
+                  labelText.push(`${label}: ${minValue}`);
+                }
+              }
+            }
+            
+            if (labelText.length > 0) {
+              resultText += `- **Labels:** ${labelText.join(', ')}\n`;
+            }
+          }
+          
+          resultText += `- **Link:** https://pdfium-review.googlesource.com/c/pdfium/+/${clNumber}\n\n`;
+        });
+      }
+      
+      // Add query examples
+      resultText += `---\n\n`;
+      resultText += `**Example queries:**\n`;
+      resultText += `- **Your CLs:** \`owner:me\` or \`owner:self\`\n`;
+      resultText += `- **Specific status:** \`status:open\`, \`status:merged\`, \`status:abandoned\`\n`;
+      resultText += `- **Multiple CLs:** \`change:12345 OR change:67890\`\n`;
+      resultText += `- **Reviewer queries:** \`reviewer:someone@example.com\`\n`;
+      resultText += `- **Branch:** \`branch:main\`\n`;
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: resultText,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to list PDFium Gerrit CLs: ${error.message}\n\nMake sure you have provided valid authentication cookies from your browser.`,
+          },
+        ],
+      };
+    }
+  }
+  
+  private getStatusEmoji(status: string): string {
+    switch (status.toUpperCase()) {
+      case 'NEW':
+      case 'OPEN':
+        return '🔵';
+      case 'MERGED':
+        return '✅';
+      case 'ABANDONED':
+        return '❌';
+      default:
+        return '⚪';
     }
   }
 

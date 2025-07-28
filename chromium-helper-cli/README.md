@@ -217,6 +217,7 @@ Commands:
   diff <cl> [options]        Get CL diff/changes
   file <cl> <path> [options] Get file content from CL patchset
   bots <cl> [options]        Get try-bot status for CL
+  list [options]             List Gerrit CLs (requires authentication)
 ```
 
 **Examples:**
@@ -236,6 +237,11 @@ ch gerrit file 6624568 "base/logging.cc" --patchset 3
 # Get try-bot status
 ch gerrit bots 6624568
 ch gerrit bots 6624568 --failed-only
+
+# List Gerrit CLs (requires authentication cookie)
+ch gerrit list --auth-cookie "SID=...; __Secure-1PSID=..." --limit 10
+ch gerrit list --auth-cookie "..." --query "status:open owner:me"
+ch gerrit list --auth-cookie "..." --query "change:1234 OR change:5678"
 ```
 
 ### `pdfium` - PDFium Gerrit Operations
@@ -252,6 +258,7 @@ Commands:
   diff <cl> [options]        Get PDFium CL diff/changes
   file <cl> <path> [options] Get file content from PDFium CL patchset
   bots <cl> [options]        Get try-bot status for PDFium CL
+  list [options]             List PDFium Gerrit CLs (requires authentication)
 ```
 
 **Examples:**
@@ -271,6 +278,11 @@ ch pdfium file 130850 "fpdfsdk/fpdf_view.cpp" --patchset 9
 # Get PDFium try-bot status
 ch pdfium bots 130850
 ch pdfium bots 130850 --failed-only
+
+# List PDFium Gerrit CLs (requires authentication cookie)
+ch pdfium list --auth-cookie "SID=...; __Secure-1PSID=..." --limit 10
+ch pdfium list --auth-cookie "..." --query "status:open owner:me"
+ch pdfium list --auth-cookie "..." --query "change:12345 OR change:67890"
 ```
 
 ### `issues` - Chromium Issue Operations
@@ -335,6 +347,23 @@ Structured JSON for programmatic processing and AI systems.
 ch search "LOG(INFO)" --format table
 ```
 Tabular format for easy reading and comparison.
+
+## 🔐 Authentication
+
+### Gerrit Authentication
+
+The `gerrit list` command requires authentication cookies from your browser. To obtain them:
+
+1. Open Chrome DevTools on the Gerrit dashboard (F12)
+2. Go to Network tab
+3. Refresh the page
+4. Find any request to `chromium-review.googlesource.com`
+5. Copy the entire "Cookie" header value
+
+**Example:**
+```bash
+ch gerrit list --auth-cookie "SID=...; __Secure-1PSID=...; __Secure-3PSID=..."
+```
 
 ## ⚙️ Configuration
 

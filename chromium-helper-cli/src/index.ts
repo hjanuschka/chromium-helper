@@ -249,6 +249,44 @@ async function main() {
       }
     });
 
+  gerrit
+    .command('list')
+    .description('List Gerrit CLs (requires authentication cookie)')
+    .option('-q, --query <query>', 'Gerrit search query (default: status:open owner:self)')
+    .option('-a, --auth-cookie <cookie>', 'authentication cookie from browser (required)')
+    .option('-l, --limit <number>', 'maximum number of CLs to return', '25')
+    .action(async (options) => {
+      try {
+        if (!options.authCookie) {
+          console.error('Error: Authentication cookie is required');
+          console.error('\nTo get your authentication cookie:');
+          console.error('1. Open Chrome DevTools on Gerrit (F12)');
+          console.error('2. Go to Network tab');
+          console.error('3. Refresh the page');
+          console.error('4. Find any request to chromium-review.googlesource.com');
+          console.error('5. Copy the entire "Cookie" header value');
+          console.error('\nExample usage:');
+          console.error(`ch gerrit list --auth-cookie "SID=...; __Secure-1PSID=...; ..."`);
+          process.exit(1);
+        }
+
+        const globalOptions = program.opts();
+        api.setDebugMode(globalOptions.debug);
+        
+        const results = await api.listGerritCLs({
+          query: options.query,
+          authCookie: options.authCookie,
+          limit: parseInt(options.limit)
+        });
+        
+        const format = program.opts().format as OutputFormat;
+        console.log(formatOutput(results, format, 'gerrit-list'));
+      } catch (error) {
+        console.error('Gerrit list failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
   // Owners command
   program
     .command('owners')
@@ -516,6 +554,44 @@ async function main() {
         console.log(formatOutput(results, format, 'gerrit-bots'));
       } catch (error) {
         console.error('PDFium Gerrit bots failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
+  pdfium
+    .command('list')
+    .description('List PDFium Gerrit CLs (requires authentication cookie)')
+    .option('-q, --query <query>', 'PDFium Gerrit search query (default: status:open owner:self)')
+    .option('-a, --auth-cookie <cookie>', 'authentication cookie from browser (required)')
+    .option('-l, --limit <number>', 'maximum number of CLs to return', '25')
+    .action(async (options) => {
+      try {
+        if (!options.authCookie) {
+          console.error('Error: Authentication cookie is required');
+          console.error('\nTo get your authentication cookie:');
+          console.error('1. Open Chrome DevTools on PDFium Gerrit (F12)');
+          console.error('2. Go to Network tab');
+          console.error('3. Refresh the page');
+          console.error('4. Find any request to pdfium-review.googlesource.com');
+          console.error('5. Copy the entire "Cookie" header value');
+          console.error('\nExample usage:');
+          console.error(`ch pdfium list --auth-cookie "SID=...; __Secure-1PSID=...; ..."`);
+          process.exit(1);
+        }
+
+        const globalOptions = program.opts();
+        api.setDebugMode(globalOptions.debug);
+        
+        const results = await api.listPdfiumGerritCLs({
+          query: options.query,
+          authCookie: options.authCookie,
+          limit: parseInt(options.limit)
+        });
+        
+        const format = program.opts().format as OutputFormat;
+        console.log(formatOutput(results, format, 'pdfium-gerrit-list'));
+      } catch (error) {
+        console.error('PDFium Gerrit list failed:', error instanceof Error ? error.message : String(error));
         process.exit(1);
       }
     });

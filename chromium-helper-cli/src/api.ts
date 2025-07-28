@@ -3253,4 +3253,130 @@ export class ChromiumAPI {
     }
   }
 
+  async listGerritCLs(params: { query?: string; authCookie: string; limit?: number }): Promise<any> {
+    const { query, authCookie, limit = 25 } = params;
+    
+    try {
+      // Build the Gerrit API URL
+      let apiUrl = 'https://chromium-review.googlesource.com/changes/?';
+      
+      // Add default options
+      const urlParams = new URLSearchParams();
+      // O=5000081 includes DETAILED_ACCOUNTS + LABELS + other options (same as Gerrit UI)
+      urlParams.append('O', '5000081');
+      urlParams.append('S', '0'); // Start index
+      
+      // Build the query
+      if (query) {
+        urlParams.append('q', query);
+      } else {
+        // Default to showing user's open CLs
+        urlParams.append('q', 'status:open owner:self');
+      }
+      
+      // Limit results
+      if (limit && limit > 0 && limit <= 100) {
+        urlParams.append('n', limit.toString());
+      }
+      
+      urlParams.append('allow-incomplete-results', 'true');
+      
+      apiUrl += urlParams.toString();
+      
+      this.debug('[DEBUG] Fetching Gerrit CLs:', apiUrl);
+      
+      // Make the request with authentication cookies
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'Cookie': authCookie,
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+      });
+      
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error('Authentication failed. Please ensure your cookie is valid and includes necessary auth tokens (SID, __Secure-1PSID, etc.)');
+        }
+        throw new Error(`Failed to fetch CLs: HTTP ${response.status}`);
+      }
+      
+      const responseText = await response.text();
+      // Remove XSSI prefix
+      const jsonText = responseText.replace(/^\)]}'/, '');
+      const cls = JSON.parse(jsonText);
+      
+      if (!Array.isArray(cls)) {
+        throw new Error('Unexpected response format from Gerrit API');
+      }
+      
+      return cls;
+    } catch (error: any) {
+      throw new GerritAPIError(`Failed to list Gerrit CLs: ${error.message}`, undefined, error);
+    }
+  }
+
+  async listPdfiumGerritCLs(params: { query?: string; authCookie: string; limit?: number }): Promise<any> {
+    const { query, authCookie, limit = 25 } = params;
+    
+    try {
+      // Build the PDFium Gerrit API URL
+      let apiUrl = 'https://pdfium-review.googlesource.com/changes/?';
+      
+      // Add default options
+      const urlParams = new URLSearchParams();
+      // O=5000081 includes DETAILED_ACCOUNTS + LABELS + other options (same as Gerrit UI)
+      urlParams.append('O', '5000081');
+      urlParams.append('S', '0'); // Start index
+      
+      // Build the query
+      if (query) {
+        urlParams.append('q', query);
+      } else {
+        // Default to showing user's open CLs
+        urlParams.append('q', 'status:open owner:self');
+      }
+      
+      // Limit results
+      if (limit && limit > 0 && limit <= 100) {
+        urlParams.append('n', limit.toString());
+      }
+      
+      urlParams.append('allow-incomplete-results', 'true');
+      
+      apiUrl += urlParams.toString();
+      
+      this.debug('[DEBUG] Fetching PDFium Gerrit CLs:', apiUrl);
+      
+      // Make the request with authentication cookies
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'Cookie': authCookie,
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+      });
+      
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error('Authentication failed. Please ensure your cookie is valid and includes necessary auth tokens (SID, __Secure-1PSID, etc.)');
+        }
+        throw new Error(`Failed to fetch CLs: HTTP ${response.status}`);
+      }
+      
+      const responseText = await response.text();
+      // Remove XSSI prefix
+      const jsonText = responseText.replace(/^\)]}'/, '');
+      const cls = JSON.parse(jsonText);
+      
+      if (!Array.isArray(cls)) {
+        throw new Error('Unexpected response format from PDFium Gerrit API');
+      }
+      
+      return cls;
+    } catch (error: any) {
+      throw new GerritAPIError(`Failed to list PDFium Gerrit CLs: ${error.message}`, undefined, error);
+    }
+  }
+
 }

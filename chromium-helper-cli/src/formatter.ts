@@ -32,6 +32,10 @@ function formatAsTable(data: any, context: string): string {
       return formatGerritFileTable(data);
     case 'gerrit-bots':
       return formatGerritBotsTable(data);
+    case 'gerrit-list':
+      return formatGerritListTable(data);
+    case 'pdfium-gerrit-list':
+      return formatPdfiumGerritListTable(data);
     case 'owners':
       return formatOwnersTable(data);
     case 'commits':
@@ -63,6 +67,10 @@ function formatAsPlain(data: any, context: string): string {
       return formatGerritFilePlain(data);
     case 'gerrit-bots':
       return formatGerritBotsPlain(data);
+    case 'gerrit-list':
+      return formatGerritListPlain(data);
+    case 'pdfium-gerrit-list':
+      return formatPdfiumGerritListPlain(data);
     case 'owners':
       return formatOwnersPlain(data);
     case 'commits':
@@ -925,5 +933,354 @@ function formatListFolderPlain(data: any): string {
     output += chalk.blue(`🔗 WebRTC: ${data.webrtcUrl}\n`);
   }
   
+  return output;
+}
+
+function formatGerritListTable(cls: any[]): string {
+  if (!cls || cls.length === 0) {
+    return chalk.yellow('No CLs found');
+  }
+
+  const tableData = [
+    ['', 'Subject', 'Status', 'Owner', 'Reviewers', 'Repo', 'Branch', 'Updated', 'Size', 'CR', 'V', 'Q']
+  ];
+
+  cls.forEach(cl => {
+    const clNumber = cl._number || cl.id;
+    const status = cl.status || 'UNKNOWN';
+    const statusIcon = getGerritStatusIcon(status);
+    const subject = `${clNumber}: ${cl.subject || 'No subject'}`;
+    const truncatedSubject = subject.length > 60 ? subject.substring(0, 57) + '...' : subject;
+    
+    // Get owner email (remove @chromium.org for display)
+    const ownerEmail = cl.owner?.email || cl.owner?.name || 'Unknown';
+    const owner = ownerEmail.replace('@chromium.org', '').replace('@google.com', '');
+    
+    // Get reviewers
+    const reviewers: string[] = [];
+    if (cl.reviewers && cl.reviewers.REVIEWER) {
+      cl.reviewers.REVIEWER.forEach((r: any) => {
+        const email = r.email || r.name || '';
+        reviewers.push(email.replace('@chromium.org', '').replace('@google.com', ''));
+      });
+    }
+    const reviewerStr = reviewers.slice(0, 2).join(', ') + (reviewers.length > 2 ? '...' : '');
+    
+    // Get project/repo
+    const project = cl.project || 'chromium/src';
+    const shortProject = project.replace('chromium/', '');
+    
+    // Get branch
+    const branch = cl.branch || 'main';
+    
+    // Format updated time
+    const updated = new Date(cl.updated);
+    const now = new Date();
+    const diffMs = now.getTime() - updated.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    let updatedStr;
+    if (diffHours < 24) {
+      updatedStr = `${diffHours}h ago`;
+    } else if (diffDays < 30) {
+      updatedStr = `${diffDays}d ago`;
+    } else {
+      updatedStr = updated.toLocaleDateString();
+    }
+    
+    // Get size
+    const size = `+${cl.insertions || 0},-${cl.deletions || 0}`;
+    
+    // Get labels
+    const cr = getLabelValue(cl.labels, 'Code-Review');
+    const v = getLabelValue(cl.labels, 'Verified');
+    const cq = getLabelValue(cl.labels, 'Commit-Queue');
+
+    tableData.push([
+      statusIcon,
+      truncatedSubject,
+      status,
+      owner,
+      reviewerStr,
+      shortProject,
+      branch,
+      updatedStr,
+      size,
+      cr,
+      v,
+      cq
+    ]);
+  });
+
+  return chalk.cyan(`Found ${cls.length} CLs\n\n`) + 
+         table(tableData, {
+           border: {
+             topBody: '─',
+             topJoin: '┬',
+             topLeft: '┌',
+             topRight: '┐',
+             bottomBody: '─',
+             bottomJoin: '┴',
+             bottomLeft: '└',
+             bottomRight: '┘',
+             bodyLeft: '│',
+             bodyRight: '│',
+             bodyJoin: '│',
+             joinBody: '─',
+             joinLeft: '├',
+             joinRight: '┤',
+             joinJoin: '┼'
+           }
+         });
+}
+
+function formatGerritListPlain(cls: any[]): string {
+  if (!cls || cls.length === 0) {
+    return chalk.yellow('No CLs found');
+  }
+
+  let output = chalk.cyan(`Found ${cls.length} CLs\n\n`);
+
+  cls.forEach((cl, index) => {
+    const clNumber = cl._number || cl.id;
+    const status = cl.status || 'UNKNOWN';
+    const statusEmoji = getGerritStatusIcon(status);
+    
+    output += chalk.bold(`${index + 1}. ${statusEmoji} CL ${clNumber}: ${cl.subject}\n`);
+    output += chalk.gray('─'.repeat(80)) + '\n';
+    
+    // Get owner email
+    const ownerEmail = cl.owner?.email || cl.owner?.name || 'Unknown';
+    const ownerDisplay = ownerEmail.replace('@chromium.org', '').replace('@google.com', '');
+    output += `  Owner: ${ownerDisplay} (${ownerEmail})\n`;
+    
+    // Get reviewers
+    if (cl.reviewers && cl.reviewers.REVIEWER && cl.reviewers.REVIEWER.length > 0) {
+      const reviewers = cl.reviewers.REVIEWER.map((r: any) => {
+        const email = r.email || r.name || '';
+        return email.replace('@chromium.org', '').replace('@google.com', '');
+      });
+      output += `  Reviewers: ${reviewers.join(', ')}\n`;
+    }
+    
+    output += `  Status: ${status}\n`;
+    output += `  Repo: ${cl.project || 'chromium/src'}\n`;
+    output += `  Branch: ${cl.branch || 'main'}\n`;
+    output += `  Created: ${new Date(cl.created).toLocaleDateString()}\n`;
+    output += `  Updated: ${new Date(cl.updated).toLocaleDateString()}\n`;
+    
+    if (cl.current_revision_number) {
+      output += `  Patchset: ${cl.current_revision_number}\n`;
+    }
+    
+    if (cl.insertions || cl.deletions) {
+      output += `  Changes: ${chalk.green(`+${cl.insertions || 0}`)} / ${chalk.red(`-${cl.deletions || 0}`)}\n`;
+    }
+    
+    if (cl.total_comment_count > 0) {
+      output += `  Comments: ${cl.total_comment_count} (${cl.unresolved_comment_count} unresolved)\n`;
+    }
+    
+    // Add labels if present
+    if (cl.labels) {
+      const importantLabels = ['Code-Review', 'Commit-Queue', 'Auto-Submit'];
+      const labelText = [];
+      
+      for (const label of importantLabels) {
+        if (cl.labels[label]) {
+          const values = cl.labels[label].all || [];
+          const maxValue = Math.max(...values.map((v: any) => v.value || 0));
+          const minValue = Math.min(...values.map((v: any) => v.value || 0));
+          
+          if (maxValue > 0) {
+            labelText.push(`${label}: ${chalk.green(`+${maxValue}`)}`);
+          } else if (minValue < 0) {
+            labelText.push(`${label}: ${chalk.red(`${minValue}`)}`);
+          }
+        }
+      }
+      
+      if (labelText.length > 0) {
+        output += `  Labels: ${labelText.join(', ')}\n`;
+      }
+    }
+    
+    output += chalk.blue(`  🔗 https://chromium-review.googlesource.com/c/chromium/src/+/${clNumber}\n`);
+    output += '\n';
+  });
+
+  return output;
+}
+
+function getGerritStatusIcon(status: string): string {
+  switch (status.toUpperCase()) {
+    case 'NEW':
+    case 'OPEN':
+      return '🔵';
+    case 'MERGED':
+      return '✅';
+    case 'ABANDONED':
+      return '❌';
+    default:
+      return '⚪';
+  }
+}
+
+function getLabelValue(labels: any, labelName: string): string {
+  if (!labels || !labels[labelName]) return '';
+  
+  const label = labels[labelName];
+  const values = label.all || [];
+  
+  const maxValue = Math.max(...values.filter((v: any) => v.value > 0).map((v: any) => v.value || 0), 0);
+  const minValue = Math.min(...values.filter((v: any) => v.value < 0).map((v: any) => v.value || 0), 0);
+  
+  if (minValue < 0) {
+    return chalk.red(`${minValue}`);
+  } else if (maxValue > 0) {
+    return chalk.green(`+${maxValue}`);
+  }
+  
+  return '';
+}
+
+function formatPdfiumGerritListTable(cls: any[]): string {
+  if (!cls || cls.length === 0) {
+    return chalk.yellow('No PDFium CLs found');
+  }
+
+  const tableData = [
+    ['', 'Subject', 'Status', 'Owner', 'Reviewers', 'Repo', 'Branch', 'Updated', 'Size', 'CR', 'V', 'Q']
+  ];
+
+  cls.forEach(cl => {
+    const clNumber = cl._number || cl.id;
+    const status = cl.status || 'UNKNOWN';
+    const statusIcon = getGerritStatusIcon(status);
+    const subject = `${clNumber}: ${cl.subject || 'No subject'}`;
+    const truncatedSubject = subject.length > 60 ? subject.substring(0, 57) + '...' : subject;
+    
+    // Get owner email (remove @chromium.org for display)
+    const ownerEmail = cl.owner?.email || cl.owner?.name || 'Unknown';
+    const owner = ownerEmail.replace('@chromium.org', '').replace('@google.com', '');
+    
+    // Get reviewers
+    const reviewers: string[] = [];
+    if (cl.reviewers && cl.reviewers.REVIEWER) {
+      cl.reviewers.REVIEWER.forEach((r: any) => {
+        const email = r.email || r.name || '';
+        reviewers.push(email.replace('@chromium.org', '').replace('@google.com', ''));
+      });
+    }
+    const reviewerStr = reviewers.slice(0, 2).join(', ') + (reviewers.length > 2 ? '...' : '');
+    
+    // Get project/repo
+    const project = cl.project || 'pdfium';
+    const shortProject = project;
+    
+    // Get branch
+    const branch = cl.branch || 'main';
+    
+    // Format updated time
+    const updated = new Date(cl.updated);
+    const now = new Date();
+    const diffMs = now.getTime() - updated.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    let updatedStr;
+    if (diffHours < 24) {
+      updatedStr = `${diffHours}h ago`;
+    } else if (diffDays < 30) {
+      updatedStr = `${diffDays}d ago`;
+    } else {
+      updatedStr = updated.toLocaleDateString();
+    }
+    
+    // Get size
+    const size = `+${cl.insertions || 0},-${cl.deletions || 0}`;
+    
+    // Get labels
+    const cr = getLabelValue(cl.labels, 'Code-Review');
+    const v = getLabelValue(cl.labels, 'Verified');
+    const cq = getLabelValue(cl.labels, 'Commit-Queue');
+
+    tableData.push([
+      statusIcon,
+      truncatedSubject,
+      status,
+      owner,
+      reviewerStr,
+      shortProject,
+      branch,
+      updatedStr,
+      size,
+      cr,
+      v,
+      cq
+    ]);
+  });
+
+  return table(tableData);
+}
+
+function formatPdfiumGerritListPlain(cls: any[]): string {
+  if (!cls || cls.length === 0) {
+    return 'No PDFium CLs found';
+  }
+
+  let output = chalk.bold.blue(`📋 Found ${cls.length} PDFium CL${cls.length !== 1 ? 's' : ''}\n\n`);
+
+  cls.forEach((cl, index) => {
+    const clNumber = cl._number;
+    const status = getGerritStatusIcon(cl.status);
+    const subject = cl.subject || 'No subject';
+    
+    output += chalk.bold(`${index + 1}. ${status} CL ${clNumber}: ${subject}\n`);
+    output += chalk.gray('─'.repeat(60)) + '\n';
+    output += `  Author: ${cl.owner?.name || 'Unknown'} (${cl.owner?.email || 'no email'})\n`;
+    output += `  Status: ${status}\n`;
+    output += `  Created: ${new Date(cl.created).toLocaleDateString()}\n`;
+    output += `  Updated: ${new Date(cl.updated).toLocaleDateString()}\n`;
+    
+    if (cl.current_revision_number) {
+      output += `  Patchset: ${cl.current_revision_number}\n`;
+    }
+    
+    if (cl.insertions || cl.deletions) {
+      output += `  Changes: ${chalk.green(`+${cl.insertions || 0}`)} / ${chalk.red(`-${cl.deletions || 0}`)}\n`;
+    }
+    
+    if (cl.total_comment_count > 0) {
+      output += `  Comments: ${cl.total_comment_count} (${cl.unresolved_comment_count} unresolved)\n`;
+    }
+    
+    // Add labels if present
+    if (cl.labels) {
+      const importantLabels = ['Code-Review', 'Commit-Queue', 'Auto-Submit'];
+      const labelText = [];
+      
+      for (const label of importantLabels) {
+        if (cl.labels[label]) {
+          const values = cl.labels[label].all || [];
+          const maxValue = Math.max(...values.map((v: any) => v.value || 0));
+          const minValue = Math.min(...values.map((v: any) => v.value || 0));
+          
+          if (maxValue > 0) {
+            labelText.push(`${label}: ${chalk.green(`+${maxValue}`)}`);
+          } else if (minValue < 0) {
+            labelText.push(`${label}: ${chalk.red(`${minValue}`)}`);
+          }
+        }
+      }
+      
+      if (labelText.length > 0) {
+        output += `  Labels: ${labelText.join(', ')}\n`;
+      }
+    }
+    
+    output += chalk.blue(`  🔗 https://pdfium-review.googlesource.com/c/pdfium/+/${clNumber}\n`);
+    output += '\n';
+  });
+
   return output;
 }

@@ -152,6 +152,7 @@ ch gerrit status 6624568
 ch gerrit comments 6624568 --unresolved-only
 ch gerrit diff 6624568 --file "chrome/browser/ui/browser.cc"
 ch gerrit bots 6624568 --failed-only
+ch gerrit list --auth-cookie "..." --query "status:open owner:me"
 
 # Issue tracking
 ch issues search "memory leak" --limit 20
@@ -161,6 +162,7 @@ ch issues get 422768753
 ch pdfium status 130850
 ch pdfium diff 130850
 ch pdfium bots 130850
+ch pdfium list --auth-cookie "..." --query "status:open owner:me"
 
 # Commit history & ownership
 ch commits "password manager" --author "chrome-team" --since "2025-06-01"
@@ -248,6 +250,7 @@ Or if installed globally:
 - **`get_gerrit_cl_comments`** - Review comments with code context
 - **`get_gerrit_cl_diff`** - Code changes and file modifications
 - **`get_gerrit_patchset_file`** - File content from specific patchsets
+- **`list_gerrit_cls`** - List Gerrit CLs with authentication (requires cookies)
 
 ### PDFium Gerrit Integration
 - **`get_pdfium_gerrit_cl_status`** - PDFium CL status and test results
@@ -269,6 +272,7 @@ Ask Claude to:
 - "Check the status of Gerrit CL 6624568"
 - "Search for memory leak issues"
 - "Get the diff for PDFium CL 130850"
+- "List my open Gerrit CLs" (requires providing authentication cookie)
 
 ---
 

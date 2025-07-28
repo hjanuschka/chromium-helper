@@ -182,6 +182,7 @@ Subcommands:
   diff <cl> [options]              Get CL diff/changes
   file <cl> <path> [options]       Get file content from CL patchset
   bots <cl> [options]              Get try-bot status for CL
+  list [options]                    List Gerrit CLs (requires authentication)
 
 Options for comments:
   -p, --patchset <number>          Specific patchset number
@@ -195,6 +196,11 @@ Options for bots:
   -p, --patchset <number>          Specific patchset number
   --failed-only                    Show only failed bots
 
+Options for list:
+  -q, --query <query>              Gerrit search query (default: status:open owner:self)
+  -a, --auth-cookie <cookie>       Authentication cookie from browser (required)
+  -l, --limit <number>             Maximum number of CLs to return (default: 25)
+
 Examples:
   ch gerrit status 6624568 --format json
   ch gerrit comments 6624568 --format json
@@ -202,6 +208,8 @@ Examples:
   ch gerrit file 6624568 "base/logging.cc" --patchset 3
   ch gerrit bots 6624568 --format json
   ch gerrit bots 5515135 --failed-only --format json
+  ch gerrit list --auth-cookie "SID=...; __Secure-1PSID=..." --format json
+  ch gerrit list --auth-cookie "..." --query "status:open owner:me" --limit 10
 
 JSON Output Format for bots:
 {
@@ -226,6 +234,34 @@ JSON Output Format for bots:
   "timestamp": "2024-06-30T10:30:00.000Z"
 }
 
+JSON Output Format for list:
+[
+  {
+    "_number": 6624568,
+    "subject": "Fix memory leak in browser",
+    "owner": {
+      "name": "Developer Name",
+      "email": "dev@chromium.org"
+    },
+    "status": "NEW",
+    "created": "2024-01-15T10:00:00.000Z",
+    "updated": "2024-01-15T14:30:00.000Z",
+    "current_revision_number": 3,
+    "insertions": 45,
+    "deletions": 12,
+    "total_comment_count": 5,
+    "unresolved_comment_count": 2,
+    "labels": {
+      "Code-Review": {
+        "all": [{"value": 2}]
+      },
+      "Commit-Queue": {
+        "all": [{"value": 1}]
+      }
+    }
+  }
+]
+
 ### 8. pdfium - PDFium Gerrit operations
 Usage: ch pdfium <command> [options]
 Aliases: pdf
@@ -236,6 +272,7 @@ Subcommands:
   diff <cl> [options]              Get PDFium CL diff/changes
   file <cl> <path> [options]       Get file content from PDFium CL patchset
   bots <cl> [options]              Get try-bot status for PDFium CL
+  list [options]                   List PDFium Gerrit CLs (requires authentication)
 
 Options for comments:
   -p, --patchset <number>          Specific patchset number
@@ -249,6 +286,11 @@ Options for bots:
   -p, --patchset <number>          Specific patchset number
   --failed-only                    Show only failed bots
 
+Options for list:
+  -q, --query <query>              PDFium Gerrit search query (default: status:open owner:self)
+  -a, --auth-cookie <cookie>       Authentication cookie from browser (required)
+  -l, --limit <number>             Maximum number of CLs to return (default: 25)
+
 Examples:
   ch pdfium status 130850
   ch pdfium comments 130850 --format json
@@ -256,6 +298,8 @@ Examples:
   ch pdfium file 130850 "fpdfsdk/fpdf_view.cpp" --patchset 9
   ch pdfium bots 130850 --format json
   ch pdfium bots 130850 --failed-only --format json
+  ch pdfium list --auth-cookie "SID=...; __Secure-1PSID=..." --format json
+  ch pdfium list --auth-cookie "..." --query "status:open owner:me" --limit 10
 
 ### 9. issues - Chromium issue operations
 Usage: ch issues <command> [options]
