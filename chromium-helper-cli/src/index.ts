@@ -5,9 +5,12 @@ import { ChromiumAPI } from './api.js';
 import { formatOutput, OutputFormat } from './formatter.js';
 import { loadConfig } from './config.js';
 import { getAIUsageGuide } from './ai-guide.js';
+import { AuthManager, getAuthCookies } from './auth.js';
+import { showCookieHelp } from './cookie-helper.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import chalk from 'chalk';
 
 const __filename = fileURLToPath(import.meta.url);
 const packageRoot = path.resolve(path.dirname(__filename), '..');
@@ -41,6 +44,138 @@ async function main() {
     console.log(getAIUsageGuide());
     process.exit(0);
   }
+
+  // Auth commands
+  const auth = program
+    .command('auth')
+    .description('Authentication management for Gerrit');
+
+  auth
+    .command('login')
+    .description('Authenticate with Gerrit using browser')
+    .option('--headless', 'Run browser in headless mode')
+    .action(async (options) => {
+      try {
+        const authManager = new AuthManager();
+        await authManager.authenticate({ headless: options.headless });
+        process.exit(0);
+      } catch (error) {
+        console.error('Authentication failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
+  auth
+    .command('status')
+    .description('Check authentication status')
+    .action(async () => {
+      try {
+        const authManager = new AuthManager();
+        const isValid = await authManager.checkAuth();
+        if (isValid) {
+          console.log('✅ Authentication is valid');
+        } else {
+          console.log('❌ No valid authentication found');
+          console.log('Run: ch auth login');
+        }
+        process.exit(0);
+      } catch (error) {
+        console.error('Status check failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
+  auth
+    .command('logout')
+    .description('Clear saved authentication')
+    .action(async () => {
+      try {
+        const authManager = new AuthManager();
+        await authManager.clearCookies();
+        process.exit(0);
+      } catch (error) {
+        console.error('Logout failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
+  auth
+    .command('help')
+    .description('Show detailed help for getting authentication cookies')
+    .action(async () => {
+      await showCookieHelp();
+      process.exit(0);
+    });
+
+  auth
+    .command('manual')
+    .description('Manually save authentication cookies')
+    .action(async () => {
+      console.log(chalk.cyan('🍪 Manual Cookie Setup\n'));
+      console.log('Please follow these steps:');
+      console.log(chalk.yellow('\n1. Open Chrome and sign in to:'));
+      console.log(chalk.blue('   https://chromium-review.googlesource.com'));
+      console.log(chalk.yellow('\n2. Open Developer Tools (F12)'));
+      console.log(chalk.yellow('3. Go to Application > Cookies'));
+      console.log(chalk.yellow('4. Find ONE of these cookies:'));
+      console.log(chalk.green('   - __Secure-1PSID (recommended)')); 
+      console.log(chalk.green('   - __Secure-3PSID (alternative)'));
+      console.log(chalk.gray('\n   Note: You only need ONE of these cookies!'));
+      console.log(chalk.yellow('\n5. Enter the cookie value below:\n'));
+
+      // Use readline to get cookie values
+      const readline = await import('readline');
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+      });
+
+      const question = (prompt: string): Promise<string> => {
+        return new Promise((resolve) => {
+          rl.question(prompt, resolve);
+        });
+      };
+
+      try {
+        console.log(chalk.cyan('Which cookie do you have?'));
+        console.log('1. __Secure-1PSID');
+        console.log('2. __Secure-3PSID');
+        const choice = await question('\nEnter your choice (1 or 2): ');
+        
+        let cookieString = '';
+        if (choice === '1') {
+          const psid1 = await question('__Secure-1PSID value: ');
+          if (!psid1) {
+            console.log(chalk.red('\n❌ Cookie value is required'));
+            process.exit(1);
+          }
+          cookieString = `__Secure-1PSID=${psid1}`;
+        } else if (choice === '2') {
+          const psid3 = await question('__Secure-3PSID value: ');
+          if (!psid3) {
+            console.log(chalk.red('\n❌ Cookie value is required'));
+            process.exit(1);
+          }
+          cookieString = `__Secure-3PSID=${psid3}`;
+        } else {
+          console.log(chalk.red('\n❌ Invalid choice. Please run the command again.'));
+          process.exit(1);
+        }
+        
+        const authManager = new AuthManager();
+        await authManager.saveCookies(cookieString);
+        
+        console.log(chalk.green('\n✅ Cookies saved successfully!'));
+        console.log(chalk.gray('You can now use gerrit list commands without --auth-cookie parameter'));
+        
+        rl.close();
+        process.exit(0);
+      } catch (error) {
+        console.error('\n❌ Error saving cookies:', error);
+        rl.close();
+        process.exit(1);
+      }
+    });
 
   // Search commands
   program
@@ -251,31 +386,27 @@ async function main() {
 
   gerrit
     .command('list')
-    .description('List Gerrit CLs (requires authentication cookie)')
+    .description('List Gerrit CLs (requires authentication)')
     .option('-q, --query <query>', 'Gerrit search query (default: status:open owner:self)')
-    .option('-a, --auth-cookie <cookie>', 'authentication cookie from browser (required)')
+    .option('-a, --auth-cookie <cookie>', 'authentication cookie (optional if already logged in)')
     .option('-l, --limit <number>', 'maximum number of CLs to return', '25')
     .action(async (options) => {
       try {
-        if (!options.authCookie) {
-          console.error('Error: Authentication cookie is required');
-          console.error('\nTo get your authentication cookie:');
-          console.error('1. Open Chrome DevTools on Gerrit (F12)');
-          console.error('2. Go to Network tab');
-          console.error('3. Refresh the page');
-          console.error('4. Find any request to chromium-review.googlesource.com');
-          console.error('5. Copy the entire "Cookie" header value');
-          console.error('\nExample usage:');
-          console.error(`ch gerrit list --auth-cookie "SID=...; __Secure-1PSID=...; ..."`);
-          process.exit(1);
-        }
-
         const globalOptions = program.opts();
         api.setDebugMode(globalOptions.debug);
         
+        // Get auth cookies with fallback to saved auth
+        let authCookie;
+        try {
+          authCookie = await getAuthCookies(options.authCookie);
+        } catch (error) {
+          console.error(error instanceof Error ? error.message : String(error));
+          process.exit(1);
+        }
+        
         const results = await api.listGerritCLs({
           query: options.query,
-          authCookie: options.authCookie,
+          authCookie: authCookie,
           limit: parseInt(options.limit)
         });
         
@@ -560,31 +691,27 @@ async function main() {
 
   pdfium
     .command('list')
-    .description('List PDFium Gerrit CLs (requires authentication cookie)')
+    .description('List PDFium Gerrit CLs (requires authentication)')
     .option('-q, --query <query>', 'PDFium Gerrit search query (default: status:open owner:self)')
-    .option('-a, --auth-cookie <cookie>', 'authentication cookie from browser (required)')
+    .option('-a, --auth-cookie <cookie>', 'authentication cookie (optional if already logged in)')
     .option('-l, --limit <number>', 'maximum number of CLs to return', '25')
     .action(async (options) => {
       try {
-        if (!options.authCookie) {
-          console.error('Error: Authentication cookie is required');
-          console.error('\nTo get your authentication cookie:');
-          console.error('1. Open Chrome DevTools on PDFium Gerrit (F12)');
-          console.error('2. Go to Network tab');
-          console.error('3. Refresh the page');
-          console.error('4. Find any request to pdfium-review.googlesource.com');
-          console.error('5. Copy the entire "Cookie" header value');
-          console.error('\nExample usage:');
-          console.error(`ch pdfium list --auth-cookie "SID=...; __Secure-1PSID=...; ..."`);
-          process.exit(1);
-        }
-
         const globalOptions = program.opts();
         api.setDebugMode(globalOptions.debug);
         
+        // Get auth cookies with fallback to saved auth
+        let authCookie;
+        try {
+          authCookie = await getAuthCookies(options.authCookie);
+        } catch (error) {
+          console.error(error instanceof Error ? error.message : String(error));
+          process.exit(1);
+        }
+        
         const results = await api.listPdfiumGerritCLs({
           query: options.query,
-          authCookie: options.authCookie,
+          authCookie: authCookie,
           limit: parseInt(options.limit)
         });
         

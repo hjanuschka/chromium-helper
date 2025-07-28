@@ -413,7 +413,7 @@ class ChromiumCodeSearchServer {
           },
           {
             name: "list_pdfium_gerrit_cls",
-            description: "List PDFium Gerrit CLs from PDFium dashboard (requires authentication cookies)",
+            description: "List PDFium Gerrit CLs from PDFium dashboard (requires authentication cookie)",
             inputSchema: {
               type: "object",
               properties: {
@@ -423,7 +423,7 @@ class ChromiumCodeSearchServer {
                 },
                 auth_cookie: {
                   type: "string",
-                  description: "Authentication cookie string from browser (copy full cookie header value)",
+                  description: "Authentication cookie - just need ONE of: __Secure-1PSID=... OR __Secure-3PSID=...",
                 },
                 limit: {
                   type: "number",
@@ -532,7 +532,7 @@ class ChromiumCodeSearchServer {
           },
           {
             name: "list_gerrit_cls",
-            description: "List Gerrit CLs from Chromium dashboard (requires authentication cookies)",
+            description: "List Gerrit CLs from Chromium dashboard (requires authentication cookie)",
             inputSchema: {
               type: "object",
               properties: {
@@ -542,7 +542,7 @@ class ChromiumCodeSearchServer {
                 },
                 auth_cookie: {
                   type: "string",
-                  description: "Authentication cookie string from browser (copy full cookie header value)",
+                  description: "Authentication cookie - just need ONE of: __Secure-1PSID=... OR __Secure-3PSID=...",
                 },
                 limit: {
                   type: "number",

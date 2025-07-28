@@ -3284,6 +3284,7 @@ export class ChromiumAPI {
       apiUrl += urlParams.toString();
       
       this.debug('[DEBUG] Fetching Gerrit CLs:', apiUrl);
+      this.debug('[DEBUG] Using auth cookie:', authCookie.substring(0, 50) + '...');
       
       // Make the request with authentication cookies
       const response = await fetch(apiUrl, {
@@ -3295,8 +3296,14 @@ export class ChromiumAPI {
       });
       
       if (!response.ok) {
+        // Log response details for debugging
+        const responseText = await response.text();
+        this.debug(`[DEBUG] Response status: ${response.status}`);
+        this.debug(`[DEBUG] Response headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()))}`);
+        this.debug(`[DEBUG] Response body (first 500 chars): ${responseText.substring(0, 500)}`);
+        
         if (response.status === 403) {
-          throw new Error('Authentication failed. Please ensure your cookie is valid and includes necessary auth tokens (SID, __Secure-1PSID, etc.)');
+          throw new Error('Authentication failed. Please ensure your cookie includes either __Secure-1PSID or __Secure-3PSID');
         }
         throw new Error(`Failed to fetch CLs: HTTP ${response.status}`);
       }
@@ -3359,7 +3366,7 @@ export class ChromiumAPI {
       
       if (!response.ok) {
         if (response.status === 403) {
-          throw new Error('Authentication failed. Please ensure your cookie is valid and includes necessary auth tokens (SID, __Secure-1PSID, etc.)');
+          throw new Error('Authentication failed. Please ensure your cookie includes either __Secure-1PSID or __Secure-3PSID');
         }
         throw new Error(`Failed to fetch CLs: HTTP ${response.status}`);
       }

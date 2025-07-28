@@ -152,7 +152,11 @@ ch gerrit status 6624568
 ch gerrit comments 6624568 --unresolved-only
 ch gerrit diff 6624568 --file "chrome/browser/ui/browser.cc"
 ch gerrit bots 6624568 --failed-only
-ch gerrit list --auth-cookie "..." --query "status:open owner:me"
+
+# Gerrit list (requires authentication)
+ch auth login  # One-time browser-based authentication
+ch gerrit list --query "status:open owner:me"
+ch pdfium list --query "status:open"
 
 # Issue tracking
 ch issues search "memory leak" --limit 20
@@ -162,7 +166,6 @@ ch issues get 422768753
 ch pdfium status 130850
 ch pdfium diff 130850
 ch pdfium bots 130850
-ch pdfium list --auth-cookie "..." --query "status:open owner:me"
 
 # Commit history & ownership
 ch commits "password manager" --author "chrome-team" --since "2025-06-01"
@@ -186,11 +189,40 @@ The CLI provides comprehensive access to Chromium's codebase with intuitive comm
 | `search` | Search code with Google syntax | `ch search "LOG(INFO)" --limit 5` |
 | `symbol` | Find symbol definitions | `ch symbol Browser::Create` |
 | `file` | Get file content | `ch file "base/logging.h" --start 100 --end 200` |
+| `auth` | Authentication management | `ch auth login` |
 | `gerrit` | Gerrit CL operations | `ch gerrit bots 6624568 --failed-only` |
 | `pdfium` | PDFium Gerrit operations | `ch pdfium status 130850` |
 | `issues` | Search/view issues | `ch issues search "memory leak"` |
 | `commits` | Search commit history | `ch commits "fix" --author "chrome-team"` |
 | `owners` | Find OWNERS files | `ch owners "chrome/browser/ui/"` |
+
+### 🔐 Authentication for Gerrit Lists
+
+The `gerrit list` and `pdfium list` commands require authentication. We've made this super easy!
+
+```bash
+# One-time setup - interactive cookie setup (recommended)
+ch auth manual
+
+# Alternative: automated browser login (may be blocked by Google)
+ch auth login
+
+# Check if you're authenticated
+ch auth status
+
+# Now use gerrit commands without any cookies!
+ch gerrit list
+ch pdfium list --query "status:open owner:me"
+
+# Clear saved authentication
+ch auth logout
+```
+
+**Manual Cookie Option**: If you prefer manual setup:
+```bash
+ch auth help  # Shows how to extract cookies manually
+ch gerrit list --auth-cookie "SID=...; __Secure-1PSID=..."
+```
 
 ### Output Formats
 
@@ -257,6 +289,7 @@ Or if installed globally:
 - **`get_pdfium_gerrit_cl_comments`** - PDFium review comments  
 - **`get_pdfium_gerrit_cl_diff`** - PDFium code changes
 - **`get_pdfium_gerrit_patchset_file`** - PDFium file content from patchsets
+- **`list_pdfium_gerrit_cls`** - List PDFium Gerrit CLs with authentication (requires cookies)
 
 ### Issue Tracking & History
 - **`get_chromium_issue`** - Detailed issue information with browser automation

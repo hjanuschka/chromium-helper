@@ -82,7 +82,31 @@ JSON Output Format:
   "browserUrl": "https://source.chromium.org/chromium/chromium/src/+/main:base/logging.h;l=100-200"
 }
 
-### 4. list-folder - List files and folders in a Chromium source directory
+### 4. auth - Authentication management for Gerrit
+Usage: ch auth <command>
+No aliases
+
+Subcommands:
+  manual                           Interactive cookie setup (recommended)
+  login                            Browser-based authentication (may be blocked by Google)
+  status                           Check authentication status
+  logout                           Clear saved authentication
+  help                             Show detailed cookie extraction help
+
+Examples:
+  ch auth manual                   # Interactive setup - enter __Secure-1PSID or __Secure-3PSID
+  ch auth login                    # Opens browser for automatic login
+  ch auth status                   # Check if authenticated
+  ch auth logout                   # Clear saved cookies
+  ch auth help                     # Show detailed instructions
+
+Authentication Notes:
+- Only ONE cookie is required: either __Secure-1PSID OR __Secure-3PSID
+- Cookies are saved to ~/.gerrit-cookie with secure permissions
+- Once authenticated, gerrit list and pdfium list work without --auth-cookie
+- Manual method is recommended as browser login may be blocked by Google security
+
+### 5. list-folder - List files and folders in a Chromium source directory
 Usage: ch list-folder <path>
 Aliases: ls
 
@@ -123,7 +147,7 @@ JSON Output Format:
   "githubUrl": "https://github.com/v8/v8/tree/main/test/benchmarks"  // For V8
 }
 
-### 5. owners - Find OWNERS files for a file path
+### 6. owners - Find OWNERS files for a file path
 Usage: ch owners <path>
 Aliases: own
 
@@ -142,7 +166,7 @@ JSON Output Format:
   ]
 }
 
-### 6. commits - Search commit history
+### 7. commits - Search commit history
 Usage: ch commits <query> [options]
 Aliases: cm
 
@@ -172,7 +196,7 @@ JSON Output Format:
   ]
 }
 
-### 7. gerrit - Gerrit code review operations
+### 8. gerrit - Gerrit code review operations
 Usage: ch gerrit <command> [options]
 Aliases: gr
 
@@ -208,8 +232,8 @@ Examples:
   ch gerrit file 6624568 "base/logging.cc" --patchset 3
   ch gerrit bots 6624568 --format json
   ch gerrit bots 5515135 --failed-only --format json
-  ch gerrit list --auth-cookie "SID=...; __Secure-1PSID=..." --format json
-  ch gerrit list --auth-cookie "..." --query "status:open owner:me" --limit 10
+  ch gerrit list --auth-cookie "__Secure-1PSID=..." --format json
+  ch gerrit list --auth-cookie "__Secure-3PSID=..." --query "status:open owner:me" --limit 10
 
 JSON Output Format for bots:
 {
@@ -262,7 +286,7 @@ JSON Output Format for list:
   }
 ]
 
-### 8. pdfium - PDFium Gerrit operations
+### 9. pdfium - PDFium Gerrit operations
 Usage: ch pdfium <command> [options]
 Aliases: pdf
 
@@ -298,10 +322,10 @@ Examples:
   ch pdfium file 130850 "fpdfsdk/fpdf_view.cpp" --patchset 9
   ch pdfium bots 130850 --format json
   ch pdfium bots 130850 --failed-only --format json
-  ch pdfium list --auth-cookie "SID=...; __Secure-1PSID=..." --format json
-  ch pdfium list --auth-cookie "..." --query "status:open owner:me" --limit 10
+  ch pdfium list --auth-cookie "__Secure-1PSID=..." --format json
+  ch pdfium list --auth-cookie "__Secure-3PSID=..." --query "status:open owner:me" --limit 10
 
-### 9. issues - Chromium issue operations
+### 11. issues - Chromium issue operations
 Usage: ch issues <command> [options]
 Aliases: bugs
 
@@ -363,7 +387,7 @@ JSON Output Format for search:
   "searchUrl": "https://issues.chromium.org/issues?q=memory%20leak"
 }
 
-### 10. issue - Get Chromium issue details (Legacy)
+### 11. issue - Get Chromium issue details (Legacy)
 Usage: ch issue <id>
 Aliases: bug
 

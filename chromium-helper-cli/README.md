@@ -352,18 +352,48 @@ Tabular format for easy reading and comparison.
 
 ### Gerrit Authentication
 
-The `gerrit list` command requires authentication cookies from your browser. To obtain them:
+The `gerrit list` and `pdfium list` commands require authentication. We've made this super easy!
 
-1. Open Chrome DevTools on the Gerrit dashboard (F12)
-2. Go to Network tab
-3. Refresh the page
-4. Find any request to `chromium-review.googlesource.com`
-5. Copy the entire "Cookie" header value
-
-**Example:**
+#### Method 1: Interactive Manual Setup (Recommended) 🚀
 ```bash
-ch gerrit list --auth-cookie "SID=...; __Secure-1PSID=...; __Secure-3PSID=..."
+# One-time setup - guides you through cookie extraction
+ch auth manual
+
+# Check if you're authenticated
+ch auth status
+
+# Now you can use gerrit commands without any cookies!
+ch gerrit list
+ch pdfium list
 ```
+
+#### Method 2: Automated Browser Login
+```bash
+# Alternative method - opens browser automatically
+ch auth login
+# Note: May be blocked by Google security checks
+```
+
+#### Method 3: Direct Cookie Parameter
+If you prefer to manually provide cookies each time:
+
+```bash
+# Get help on extracting cookies
+ch auth help
+
+# Use with --auth-cookie parameter
+ch gerrit list --auth-cookie "SID=...; __Secure-1PSID=...; __Secure-3PSID=..."
+
+# Or save to ~/.gerrit-cookie file
+echo "SID=...; __Secure-1PSID=...; __Secure-3PSID=..." > ~/.gerrit-cookie
+ch gerrit list  # Will use saved cookies automatically
+```
+
+#### Authentication Commands
+- `ch auth login` - Sign in via browser (saves cookies)
+- `ch auth status` - Check if authenticated
+- `ch auth logout` - Clear saved authentication
+- `ch auth help` - Show detailed cookie extraction help
 
 ## ⚙️ Configuration
 
