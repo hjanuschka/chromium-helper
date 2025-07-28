@@ -4670,8 +4670,8 @@ class ChromiumCodeSearchServer {
             for (const label of importantLabels) {
               if (cl.labels[label]) {
                 const values = cl.labels[label].all || [];
-                const maxValue = Math.max(...values.map(v => v.value || 0));
-                const minValue = Math.min(...values.map(v => v.value || 0));
+                const maxValue = Math.max(...values.map((v: any) => v.value || 0));
+                const minValue = Math.min(...values.map((v: any) => v.value || 0));
                 
                 if (maxValue > 0) {
                   labelText.push(`${label}: +${maxValue}`);
