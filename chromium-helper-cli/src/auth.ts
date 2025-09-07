@@ -57,14 +57,13 @@ export class AuthManager {
         // Get all cookies
         const cookies = await context.cookies();
         
-        // Look for key authentication cookies (only need one!)
-        authCookie = cookies.find(cookie => 
-          cookie.name === '__Secure-1PSID' || 
-          cookie.name === '__Secure-3PSID'
-        );
+        // Look for key authentication cookies (need both!)
+        const psid1Cookie = cookies.find(cookie => cookie.name === '__Secure-1PSID');
+        const psid3Cookie = cookies.find(cookie => cookie.name === '__Secure-3PSID');
         
-        // If we have either key cookie, we're authenticated
-        if (authCookie) {
+        // If we have both key cookies, we're authenticated
+        if (psid1Cookie && psid3Cookie) {
+          authCookie = psid1Cookie; // We'll construct the full cookie string below
           console.log(chalk.green('\n✓ Authentication detected!'));
           break;
         }
@@ -80,11 +79,20 @@ export class AuthManager {
           console.log(chalk.gray(`  - ${cookie.name}`));
         });
         
-        throw new Error('Authentication timeout. Could not find required cookie (__Secure-1PSID or __Secure-3PSID).');
+        throw new Error('Authentication timeout. Could not find required cookies (__Secure-1PSID and __Secure-3PSID).');
       }
       
-      // Just use the found auth cookie - we only need one!
-      const cookieString = `${authCookie.name}=${authCookie.value}`;
+      // Get both cookies and construct the full cookie string
+      const cookies = await context.cookies();
+      const psid1Cookie = cookies.find(cookie => cookie.name === '__Secure-1PSID');
+      const psid3Cookie = cookies.find(cookie => cookie.name === '__Secure-3PSID');
+      
+      let cookieString = '';
+      if (psid1Cookie && psid3Cookie) {
+        cookieString = `__Secure-1PSID=${psid1Cookie.value}; __Secure-3PSID=${psid3Cookie.value}`;
+      } else {
+        throw new Error('Could not find both required cookies');
+      }
       
       // Save to file
       await this.saveCookies(cookieString);
@@ -127,9 +135,10 @@ export class AuthManager {
       return false;
     }
 
-    // Test if cookies are still valid
+    // Test if cookies are still valid by trying a query with owner:self
+    // This ensures the authentication works for user-specific queries
     try {
-      const response = await fetch('https://chromium-review.googlesource.com/changes/?O=1&S=0&n=1', {
+      const response = await fetch('https://chromium-review.googlesource.com/changes/?q=owner:self&n=1', {
         headers: {
           'Cookie': cookies,
           'Accept': 'application/json',
@@ -165,8 +174,8 @@ export async function getAuthCookies(providedCookie?: string): Promise<string> {
 
   throw new Error(
     'No authentication found. Please run:\n' +
-    chalk.cyan('  ch auth manual') + ' (recommended)\n' +
+    chalk.cyan('  ch auth manual') + ' (recommended - requires both __Secure-1PSID and __Secure-3PSID)\n' +
     chalk.cyan('  ch auth login') + ' (may be blocked by Google)\n' +
-    'Or provide cookie with --auth-cookie parameter'
+    'Or provide cookies with --auth-cookie parameter'
   );
 }

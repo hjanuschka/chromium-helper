@@ -42,3 +42,7 @@ Thumbs.db
 
 # Local MCP config files (contain user-specific paths)
 claude-desktop-config.json
+
+# Authentication cookies
+.gerrit-cookie
+~/.gerrit-cookie

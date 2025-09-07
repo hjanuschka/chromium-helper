@@ -230,7 +230,7 @@ export class ChromiumAPI {
       
       const response = await fetch(gitileUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
       });
 
@@ -2868,7 +2868,7 @@ export class ChromiumAPI {
       
       const response = await fetch(gitilesUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
       });
       
@@ -3044,7 +3044,7 @@ export class ChromiumAPI {
       
       const response = await fetch(gitilesUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
       });
       
@@ -3189,7 +3189,7 @@ export class ChromiumAPI {
       
       const response = await fetch(gitilesUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
       });
       
@@ -3262,15 +3262,15 @@ export class ChromiumAPI {
       
       // Add default options
       const urlParams = new URLSearchParams();
-      // O=5000081 includes DETAILED_ACCOUNTS + LABELS + other options (same as Gerrit UI)
-      urlParams.append('O', '5000081');
+      // Use simpler options that work with basic auth
+      urlParams.append('O', '81'); // Basic LABELS option
       urlParams.append('S', '0'); // Start index
       
       // Build the query
       if (query) {
         urlParams.append('q', query);
       } else {
-        // Default to showing user's open CLs
+        // Default to showing user's open CLs  
         urlParams.append('q', 'status:open owner:self');
       }
       
@@ -3291,8 +3291,8 @@ export class ChromiumAPI {
         headers: {
           'Accept': 'application/json',
           'Cookie': authCookie,
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
         },
+        redirect: 'manual' // Don't follow redirects - if we get a redirect, it means auth failed
       });
       
       if (!response.ok) {
@@ -3303,7 +3303,7 @@ export class ChromiumAPI {
         this.debug(`[DEBUG] Response body (first 500 chars): ${responseText.substring(0, 500)}`);
         
         if (response.status === 403) {
-          throw new Error('Authentication failed. Please ensure your cookie includes either __Secure-1PSID or __Secure-3PSID');
+          throw new Error('Authentication failed. Please ensure your cookies include both __Secure-1PSID and __Secure-3PSID');
         }
         throw new Error(`Failed to fetch CLs: HTTP ${response.status}`);
       }
@@ -3332,15 +3332,15 @@ export class ChromiumAPI {
       
       // Add default options
       const urlParams = new URLSearchParams();
-      // O=5000081 includes DETAILED_ACCOUNTS + LABELS + other options (same as Gerrit UI)
-      urlParams.append('O', '5000081');
+      // Use simpler options that work with basic auth
+      urlParams.append('O', '81'); // Basic LABELS option
       urlParams.append('S', '0'); // Start index
       
       // Build the query
       if (query) {
         urlParams.append('q', query);
       } else {
-        // Default to showing user's open CLs
+        // Default to showing user's open CLs  
         urlParams.append('q', 'status:open owner:self');
       }
       
@@ -3360,13 +3360,13 @@ export class ChromiumAPI {
         headers: {
           'Accept': 'application/json',
           'Cookie': authCookie,
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
         },
+        redirect: 'manual' // Don't follow redirects - if we get a redirect, it means auth failed
       });
       
       if (!response.ok) {
         if (response.status === 403) {
-          throw new Error('Authentication failed. Please ensure your cookie includes either __Secure-1PSID or __Secure-3PSID');
+          throw new Error('Authentication failed. Please ensure your cookies include both __Secure-1PSID and __Secure-3PSID');
         }
         throw new Error(`Failed to fetch CLs: HTTP ${response.status}`);
       }

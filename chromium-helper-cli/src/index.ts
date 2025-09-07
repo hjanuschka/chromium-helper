@@ -113,15 +113,17 @@ async function main() {
     .action(async () => {
       console.log(chalk.cyan('🍪 Manual Cookie Setup\n'));
       console.log('Please follow these steps:');
-      console.log(chalk.yellow('\n1. Open Chrome and sign in to:'));
+      console.log(chalk.yellow('\n1. Open Chrome in INCOGNITO mode'));
+      console.log(chalk.yellow('2. Sign in to:'));
       console.log(chalk.blue('   https://chromium-review.googlesource.com'));
-      console.log(chalk.yellow('\n2. Open Developer Tools (F12)'));
-      console.log(chalk.yellow('3. Go to Application > Cookies'));
-      console.log(chalk.yellow('4. Find ONE of these cookies:'));
-      console.log(chalk.green('   - __Secure-1PSID (recommended)')); 
-      console.log(chalk.green('   - __Secure-3PSID (alternative)'));
-      console.log(chalk.gray('\n   Note: You only need ONE of these cookies!'));
-      console.log(chalk.yellow('\n5. Enter the cookie value below:\n'));
+      console.log(chalk.yellow('\n3. Open Developer Tools (F12)'));
+      console.log(chalk.yellow('4. Go to Application > Cookies > chromium-review.googlesource.com'));
+      console.log(chalk.yellow('5. Find these cookies (from .googlesource.com domain):'));
+      console.log(chalk.green('   - SID')); 
+      console.log(chalk.green('   - __Secure-1PSID')); 
+      console.log(chalk.green('   - __Secure-3PSID'));
+      console.log(chalk.gray('\n   Note: All three cookies are required for full functionality'));
+      console.log(chalk.yellow('\n6. Enter the cookie values below:\n'));
 
       // Use readline to get cookie values
       const readline = await import('readline');
@@ -137,36 +139,35 @@ async function main() {
       };
 
       try {
-        console.log(chalk.cyan('Which cookie do you have?'));
-        console.log('1. __Secure-1PSID');
-        console.log('2. __Secure-3PSID');
-        const choice = await question('\nEnter your choice (1 or 2): ');
-        
-        let cookieString = '';
-        if (choice === '1') {
-          const psid1 = await question('__Secure-1PSID value: ');
-          if (!psid1) {
-            console.log(chalk.red('\n❌ Cookie value is required'));
-            process.exit(1);
-          }
-          cookieString = `__Secure-1PSID=${psid1}`;
-        } else if (choice === '2') {
-          const psid3 = await question('__Secure-3PSID value: ');
-          if (!psid3) {
-            console.log(chalk.red('\n❌ Cookie value is required'));
-            process.exit(1);
-          }
-          cookieString = `__Secure-3PSID=${psid3}`;
-        } else {
-          console.log(chalk.red('\n❌ Invalid choice. Please run the command again.'));
+        const sid = await question('SID value: ');
+        if (!sid) {
+          console.log(chalk.red('\n❌ SID cookie value is required'));
+          rl.close();
           process.exit(1);
         }
+        
+        const psid1 = await question('__Secure-1PSID value: ');
+        if (!psid1) {
+          console.log(chalk.red('\n❌ __Secure-1PSID cookie value is required'));
+          rl.close();
+          process.exit(1);
+        }
+        
+        const psid3 = await question('__Secure-3PSID value: ');
+        if (!psid3) {
+          console.log(chalk.red('\n❌ __Secure-3PSID cookie value is required'));
+          rl.close();
+          process.exit(1);
+        }
+        
+        // Combine all three cookies
+        const cookieString = `SID=${sid}; __Secure-1PSID=${psid1}; __Secure-3PSID=${psid3}`;
         
         const authManager = new AuthManager();
         await authManager.saveCookies(cookieString);
         
         console.log(chalk.green('\n✅ Cookies saved successfully!'));
-        console.log(chalk.gray('You can now use gerrit list commands without --auth-cookie parameter'));
+        console.log(chalk.gray('You can now use gerrit list commands with owner:self queries'));
         
         rl.close();
         process.exit(0);
